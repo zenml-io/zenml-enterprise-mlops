@@ -26,7 +26,7 @@ from zenml import Model, pipeline
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
 
-from platform.hooks import mlflow_success_hook, compliance_failure_hook
+from governance.hooks import mlflow_success_hook, compliance_failure_hook
 from src.steps import load_data, engineer_features, predict_batch
 
 logger = get_logger(__name__)

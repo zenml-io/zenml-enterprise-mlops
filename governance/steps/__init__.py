@@ -14,18 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Platform hooks for governance enforcement.
+"""Platform-managed shared steps.
 
-Hooks are automatically executed at pipeline lifecycle events
-to enforce platform policies without modifying user code.
+These steps enforce governance policies and are required
+by the platform team to be included in all pipelines.
 """
 
-from platform.hooks.mlflow_hook import mlflow_success_hook
-from platform.hooks.monitoring_hook import monitoring_success_hook
-from platform.hooks.compliance_hook import compliance_failure_hook
+from governance.steps.data_validation import validate_data_quality
+from governance.steps.model_validation import validate_model_performance
 
 __all__ = [
-    "mlflow_success_hook",
-    "monitoring_success_hook",
-    "compliance_failure_hook",
+    "validate_data_quality",
+    "validate_model_performance",
 ]

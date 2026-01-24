@@ -27,11 +27,11 @@ from zenml import Model, pipeline
 from zenml.logger import get_logger
 
 # Import platform governance
-from platform.hooks import (
+from governance.hooks import (
     mlflow_success_hook,
     compliance_failure_hook,
 )
-from platform.steps import validate_data_quality, validate_model_performance
+from governance.steps import validate_data_quality, validate_model_performance
 
 # Import ML steps
 from src.steps import (
