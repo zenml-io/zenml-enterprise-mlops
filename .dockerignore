@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+.Python
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ZenML
+.zen/
+zenml_local.db
+
+# MLflow
+mlruns/
+
+# Data
+data/
+*.csv
+
+# Secrets
+.env
+secrets/
+*.key
+
+# Git
+.git/
+.gitignore
+
+# Docs
+docs/
+*.md
+
+# Tests
+tests/
+.pytest_cache/
