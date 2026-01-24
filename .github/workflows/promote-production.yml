@@ -1,0 +1,110 @@
+name: Promote to Production
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+    inputs:
+      model_version:
+        description: 'Model version to promote (e.g., 1.2.3 or "latest")'
+        required: false
+        default: 'latest'
+      force:
+        description: 'Force promotion (demote current production model)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://cloud.zenml.io/workspaces/zenml-projects
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Connect to ZenML
+        env:
+          ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
+          ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
+        run: |
+          zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+
+      - name: Determine model version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # Use release tag as version
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            # Use manual input
+            VERSION="${{ github.event.inputs.model_version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Promoting version: $VERSION"
+
+      - name: Promote to staging first
+        run: |
+          if [ "${{ steps.version.outputs.version }}" == "latest" ]; then
+            python scripts/promote_model.py \
+              --model patient_readmission_predictor \
+              --to-stage staging
+          else
+            python scripts/promote_model.py \
+              --model patient_readmission_predictor \
+              --version ${{ steps.version.outputs.version }} \
+              --to-stage staging
+          fi
+
+      - name: Wait for staging validation
+        run: |
+          echo "In production, you would run validation tests against staging here"
+          echo "For demo, we'll proceed immediately"
+          sleep 5
+
+      - name: Promote to production
+        run: |
+          FORCE_FLAG=""
+          if [ "${{ github.event.inputs.force }}" == "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+
+          python scripts/promote_model.py \
+            --model patient_readmission_predictor \
+            --from-stage staging \
+            --to-stage production \
+            $FORCE_FLAG
+
+      - name: Create deployment summary
+        if: success()
+        run: |
+          echo "## 🚀 Production Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** patient_readmission_predictor" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the ZenML dashboard for full details." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "## ❌ Production Promotion Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
