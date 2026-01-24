@@ -1,4 +1,4 @@
-name: Train Model on Staging
+name: Training Pipeline (Staging)
 
 on:
   pull_request:
@@ -11,13 +11,29 @@ on:
       - 'configs/**'
       - 'requirements.txt'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   train:
     runs-on: ubuntu-latest
+    env:
+      # Configure for your ZenML deployment
+      ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
+      ZENML_PROJECT: ${{ secrets.ZENML_PROJECT || 'default' }}
+      ZENML_STAGING_STACK: ${{ secrets.ZENML_STAGING_STACK || 'default' }}
+      # Auto-populated from GitHub
+      ZENML_GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+      ZENML_GITHUB_PR_URL: ${{ github.event.pull_request.html_url }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,26 +47,31 @@ jobs:
         run: uv pip install --system -r requirements.txt
 
       - name: Connect to ZenML
-        env:
-          ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
-          ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
         run: |
           zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+          zenml project set $ZENML_PROJECT
 
-      - name: Set active stack
+      - name: Set stack
+        run: zenml stack set $ZENML_STAGING_STACK
+
+      # ZenML Pro: Create snapshot AND run
+      - name: Build and run snapshot (Pro)
+        id: pro_build
+        continue-on-error: true
         run: |
-          # Use staging stack in production
-          # For demo, we'll use default stack
-          zenml stack set default
+          python build.py \
+            --environment staging \
+            --stack $ZENML_STAGING_STACK \
+            --run
 
-      - name: Run training pipeline
-        env:
-          ZENML_GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
-          ZENML_GITHUB_PR_URL: ${{ github.event.pull_request.html_url }}
+      # ZenML OSS fallback: Direct execution
+      - name: Run pipeline directly (OSS)
+        if: steps.pro_build.outcome == 'failure'
         run: |
-          python run.py --pipeline training --n-estimators 100
+          echo "Snapshot creation failed (OSS?), running pipeline directly..."
+          python run.py --pipeline training
 
-      - name: Comment on PR with results
+      - name: Comment on PR
         if: success()
         uses: actions/github-script@v7
         with:
@@ -60,16 +81,4 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: '✅ Training pipeline completed successfully! Check the ZenML dashboard for results.'
-            })
-
-      - name: Comment on PR with failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '❌ Training pipeline failed. Check the GitHub Actions logs for details.'
             })

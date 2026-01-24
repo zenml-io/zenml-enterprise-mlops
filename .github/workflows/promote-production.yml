@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       model_version:
-        description: 'Model version to promote (e.g., 1.2.3 or "latest")'
+        description: 'Model version to promote (e.g., 1 or "latest")'
         required: false
         default: 'latest'
       force:
@@ -17,12 +17,16 @@ on:
         default: false
 
 jobs:
-  promote:
+  build-snapshot:
     runs-on: ubuntu-latest
-
     environment:
       name: production
-      url: https://cloud.zenml.io/workspaces/zenml-projects
+    env:
+      ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
+      ZENML_PROJECT: ${{ secrets.ZENML_PROJECT || 'default' }}
+      ZENML_PRODUCTION_STACK: ${{ secrets.ZENML_PRODUCTION_STACK || 'default' }}
+      ZENML_GITHUB_SHA: ${{ github.sha }}
 
     steps:
       - name: Checkout code
@@ -40,26 +44,61 @@ jobs:
         run: uv pip install --system -r requirements.txt
 
       - name: Connect to ZenML
-        env:
-          ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
-          ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
         run: |
           zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+          zenml project set $ZENML_PROJECT
 
-      - name: Determine model version
+      - name: Set stack
+        run: zenml stack set $ZENML_PRODUCTION_STACK
+
+      # Create production snapshot (don't run yet - requires approval)
+      - name: Build production snapshot (Pro)
+        id: pro_build
+        continue-on-error: true
+        run: |
+          python build.py \
+            --environment production \
+            --stack $ZENML_PRODUCTION_STACK
+
+  promote-model:
+    needs: build-snapshot
+    runs-on: ubuntu-latest
+    env:
+      ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
+      ZENML_PROJECT: ${{ secrets.ZENML_PROJECT || 'default' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Connect to ZenML
+        run: |
+          zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+          zenml project set $ZENML_PROJECT
+
+      - name: Determine version
         id: version
         run: |
           if [ "${{ github.event_name }}" == "release" ]; then
-            # Use release tag as version
             VERSION="${{ github.event.release.tag_name }}"
           else
-            # Use manual input
             VERSION="${{ github.event.inputs.model_version }}"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Promoting version: $VERSION"
 
-      - name: Promote to staging first
+      - name: Promote to staging
         run: |
           if [ "${{ steps.version.outputs.version }}" == "latest" ]; then
             python scripts/promote_model.py \
@@ -71,12 +110,6 @@ jobs:
               --version ${{ steps.version.outputs.version }} \
               --to-stage staging
           fi
-
-      - name: Wait for staging validation
-        run: |
-          echo "In production, you would run validation tests against staging here"
-          echo "For demo, we'll proceed immediately"
-          sleep 5
 
       - name: Promote to production
         run: |
@@ -91,20 +124,11 @@ jobs:
             --to-stage production \
             $FORCE_FLAG
 
-      - name: Create deployment summary
+      - name: Create summary
         if: success()
         run: |
-          echo "## 🚀 Production Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Production Promotion Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Model:** patient_readmission_predictor" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the ZenML dashboard for full details." >> $GITHUB_STEP_SUMMARY
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "## ❌ Production Promotion Failed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
