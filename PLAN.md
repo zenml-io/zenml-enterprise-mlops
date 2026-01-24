@@ -2,10 +2,9 @@
 
 ## Project Overview
 
-This is an enterprise-ready MLOps template showcasing ZenML best practices for healthcare/regulated industries. Built specifically to address HCA Healthcare's requirements, but designed as a generic template for any enterprise customer.
+This is an enterprise-ready MLOps template showcasing ZenML best practices for regulated industries and large organizations. Built to demonstrate governance, multi-environment promotion, and GitOps workflows.
 
-**Demo Date:** January 27, 2026
-**Target Audience:** Enterprise customers with complex governance, multi-environment promotion, and GitOps requirements
+**Target Audience:** Enterprise customers with complex governance requirements, multi-environment deployments, and GitOps needs
 
 ## Use Case
 
@@ -17,7 +16,7 @@ This is an enterprise-ready MLOps template showcasing ZenML best practices for h
 
 ## Key Demonstrations
 
-### 1. Multi-Environment Model Promotion (HCA's #1 Pain Point)
+### 1. Multi-Environment Model Promotion
 - Train model → promote to staging → promote to production
 - GitOps-based promotion (PR merge, release tags)
 - Approval gates and RBAC
@@ -49,19 +48,25 @@ This is an enterprise-ready MLOps template showcasing ZenML best practices for h
 - Monitoring integration
 - Results versioning
 
+### 6. Pipeline Snapshots (ZenML Pro)
+- Immutable pipeline definitions
+- GitOps-style deployment
+- Version-controlled pipelines
+- API/UI triggering
+
 ## Repository Structure
 
 ```
 zenml-enterprise-mlops/
 ├── .github/
 │   └── workflows/
-│       ├── train-staging.yml          # Auto-train on PR to staging
+│       ├── train-staging.yml          # Auto-train on PR
 │       ├── promote-production.yml     # Promote on release
 │       └── batch-inference.yml        # Scheduled daily inference
 │
-├── platform/                          # Platform team owns/maintains
+├── governance/                        # Platform team owns/maintains
 │   ├── docker/
-│   │   ├── Dockerfile.base           # Base image with MLflow, etc.
+│   │   ├── Dockerfile.base           # Base image with dependencies
 │   │   └── requirements.txt
 │   ├── hooks/
 │   │   ├── __init__.py
@@ -107,14 +112,16 @@ zenml-enterprise-mlops/
 │   └── setup_stacks.sh              # Configure ZenML stacks
 │
 ├── notebooks/
-│   └── 01_lineage_demo.ipynb       # Show lineage tracing
+│   └── lineage_demo.ipynb          # Lineage tracing demonstration
 │
 ├── docs/
 │   ├── ARCHITECTURE.md              # Architecture decisions
 │   ├── DEVELOPER_GUIDE.md           # For data scientists
 │   ├── PLATFORM_GUIDE.md            # For platform engineers
-│   └── DEMO_SCRIPT.md               # Step-by-step demo
+│   └── DEPLOYMENT.md                # Deployment instructions
 │
+├── build.py                         # Pipeline snapshot builder (Pro)
+├── run.py                           # Simple CLI to run pipelines
 ├── .dockerignore
 ├── .gitignore
 ├── LICENSE
@@ -124,40 +131,29 @@ zenml-enterprise-mlops/
 └── PLAN.md                          # This file
 ```
 
-## Implementation Timeline
+## Implementation Status
 
-### Day 1 (Jan 24) - Foundation
-- [x] Create repository structure
-- [x] Write PLAN.md
-- [ ] Create README.md with quick start
-- [ ] Set up .gitignore and basic files
-- [ ] Create requirements.txt
-- [ ] Build basic training pipeline
-- [ ] Create platform hooks (MLflow)
-- [ ] Test locally
+### ✅ Completed
+- [x] Repository structure and foundational files
+- [x] Python package __init__ files
+- [x] Training pipeline with data loading and model training steps
+- [x] Platform hooks for MLflow auto-logging
+- [x] Batch inference pipeline
+- [x] Test training pipeline locally
+- [x] Model promotion script
+- [x] GitHub Actions workflows for GitOps
+- [x] Lineage demonstration notebook
+- [x] Pipeline snapshot support (Pro)
 
-### Day 2 (Jan 25) - GitOps & Promotion
-- [ ] Create GitHub Actions workflows
-- [ ] Build promotion pipeline
-- [ ] Build batch inference pipeline
-- [ ] Create promotion script
-- [ ] Set up model stages workflow
-- [ ] Test promotion flow
+### 📝 Future Enhancements
+- [ ] Cloud-specific deployment guides (GCP, AWS, Azure)
+- [ ] Real-time inference deployment
+- [ ] Champion/challenger deployment pattern
+- [ ] Data drift detection integration
+- [ ] Advanced monitoring dashboards
+- [ ] Multi-cloud deployment examples
 
-### Day 3 (Jan 26) - Polish & Documentation
-- [ ] Create lineage demo notebook
-- [ ] Write comprehensive docs
-- [ ] Create demo script
-- [ ] Polish README
-- [ ] End-to-end testing
-- [ ] Record demo scenarios
-
-### Demo Day (Jan 27)
-- [ ] Live demonstration
-- [ ] Q&A handling
-- [ ] Gather feedback
-
-## ZenML Best Practices to Follow
+## ZenML Best Practices Followed
 
 ### 1. Use Annotated for Artifact Naming
 ```python
@@ -199,7 +195,7 @@ def train() -> Annotated[
 ### 4. Proper Hook Usage
 ```python
 from zenml import pipeline
-from platform.hooks import mlflow_hook, compliance_hook
+from governance.hooks import mlflow_hook, compliance_hook
 
 @pipeline(
     on_success=mlflow_hook,
@@ -218,11 +214,6 @@ def preprocess_data(
     target_column: str
 ) -> Annotated[pd.DataFrame, "processed_data"]:
     return processed_data
-
-# Avoid: Unclear interfaces, no types
-@step
-def preprocess(data):
-    return data
 ```
 
 ### 6. Use get_step_context and get_pipeline_context
@@ -249,49 +240,16 @@ def train_with_tracking():
     ...
 ```
 
-### 8. Model Registry Integration
+### 8. Pipeline Snapshots (Pro)
 ```python
-from zenml.integrations.mlflow.steps import mlflow_register_model_step
+# Create immutable snapshot for GitOps
+snapshot = training_pipeline.create_snapshot(
+    name="STG_model_abc1234"
+)
 
-@step
-def register_model(model: ClassifierMixin, name: str):
-    mlflow_register_model_step.entrypoint(model, name=name)
+# Trigger later via API/UI
+client.trigger_pipeline(snapshot_name_or_id=snapshot.id)
 ```
-
-### 9. GitHub Code Repository Integration
-```python
-# In setup script
-zenml code-repository register enterprise-ml \
-    --type=github \
-    --owner=zenml-io \
-    --repository=zenml-enterprise-mlops \
-    --token={{github_secret.token}}
-```
-
-### 10. Proper Materializer Usage
-- Let ZenML auto-detect materializers
-- Only create custom ones when needed
-- Use built-in materializers for common types
-
-## Key Files to Create First
-
-### Priority 1 (Core Functionality)
-1. `README.md` - Quick start guide
-2. `requirements.txt` - Dependencies
-3. `.gitignore` - Standard Python/ZenML ignores
-4. `src/pipelines/training.py` - Main training pipeline
-5. `src/steps/model_trainer.py` - Training step
-6. `platform/hooks/mlflow_hook.py` - Auto-logging hook
-
-### Priority 2 (GitOps & Promotion)
-7. `.github/workflows/train-staging.yml` - CI/CD
-8. `scripts/promote_model.py` - Promotion script
-9. `src/pipelines/batch_inference.py` - Inference pipeline
-
-### Priority 3 (Documentation & Demo)
-10. `docs/DEMO_SCRIPT.md` - Demo walkthrough
-11. `notebooks/01_lineage_demo.ipynb` - Lineage showcase
-12. `docs/ARCHITECTURE.md` - Design decisions
 
 ## Testing Strategy
 
@@ -309,38 +267,37 @@ zenml code-repository register enterprise-ml \
 
 ## Success Criteria
 
-- [ ] Clean developer experience (no wrapper code)
-- [ ] Platform governance enforcement (hooks work)
-- [ ] Model promotion flow demonstrated
-- [ ] GitOps integration working
-- [ ] Lineage tracing demonstrated
-- [ ] Comprehensive documentation
-- [ ] Demo-ready by Jan 26
+- [x] Clean developer experience (no wrapper code)
+- [x] Platform governance enforcement (hooks work)
+- [x] Model promotion flow demonstrated
+- [x] GitOps integration working
+- [x] Lineage tracing demonstrated
+- [x] Comprehensive documentation
+- [x] Pipeline snapshots (Pro feature)
+- [x] OSS/Pro compatibility
 
-## Questions to Address in Demo
+## Key Features for Enterprise Customers
 
-### For HCA Healthcare
-1. ✅ Multi-environment promotion → Show stage transitions
-2. ✅ Platform control → Show hooks enforcing MLflow
-3. ✅ GitOps → Show GitHub Actions
-4. ✅ Lineage → Show notebook tracing
-5. ✅ Clean dev experience → Show simple pipeline code
-6. ✅ Batch inference → Show production model usage
+### For Platform Teams
+- Governance hooks enforce standards automatically
+- Validation steps ensure quality gates
+- Stack configurations control infrastructure
+- Audit trails for compliance
+- Pipeline snapshots for immutable deployments
 
-### For Other Customers
-- How to adapt to their cloud (AWS/Azure/GCP)
-- How to integrate their tools (not just MLflow)
-- How to customize governance policies
-- How to scale to multiple teams
+### For Data Scientists
+- Pure Python code, no wrappers needed
+- Simple CLI to run pipelines
+- Automatic artifact tracking
+- Built-in experiment tracking
+- Easy local development
 
-## Post-Demo Next Steps
-
-1. Gather feedback from HCA demo
-2. Polish based on feedback
-3. Add AWS/Azure variations (optional)
-4. Propose as official ZenML project
-5. Blog post about enterprise patterns
-6. Add to ZenML docs as reference
+### For MLOps Engineers
+- GitOps workflows out of the box
+- Model promotion with validation
+- Complete lineage tracking
+- Multi-environment support
+- Cloud-agnostic patterns
 
 ## Notes
 
@@ -350,3 +307,8 @@ zenml code-repository register enterprise-ml \
 - Document everything clearly
 - Use real-world naming (not "foo", "bar")
 - Show compliance considerations
+- Showcase Pro features while maintaining OSS compatibility
+
+---
+
+*This template demonstrates enterprise MLOps best practices using ZenML.*
