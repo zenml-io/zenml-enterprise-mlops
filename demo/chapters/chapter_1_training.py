@@ -24,7 +24,7 @@ def run():
     print_section("🎯 What We're Demonstrating")
     print(
         """
-In this chapter, we train a patient readmission prediction model.
+In this chapter, we train a risk prediction model using the breast cancer dataset.
 
 Key points to highlight:
   ✓ Data scientists write PURE PYTHON - no framework wrappers

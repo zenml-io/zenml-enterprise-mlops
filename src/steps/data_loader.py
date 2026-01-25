@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Data loading step for patient readmission prediction."""
+"""Data loading step for risk prediction model."""
 
 from typing import Annotated
 
@@ -37,10 +37,10 @@ def load_data(
     Annotated[pd.Series, "y_train"],
     Annotated[pd.Series, "y_test"],
 ]:
-    """Load and split the breast cancer dataset for risk prediction.
+    """Load and split the breast cancer dataset for binary classification.
 
-    This step uses the breast cancer dataset as a proxy for patient risk
-    prediction. In production, this would load from your data warehouse.
+    This step uses sklearn's breast cancer dataset for the demo.
+    In production, this would load from your data warehouse.
 
     Args:
         test_size: Fraction of data to use for testing

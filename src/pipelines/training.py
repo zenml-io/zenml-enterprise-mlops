@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Training pipeline for patient readmission prediction model.
+"""Training pipeline for binary classification model.
 
 This pipeline demonstrates:
 - Clean developer experience (no wrapper code)
@@ -22,6 +22,8 @@ This pipeline demonstrates:
 - Model Control Plane integration
 - MLflow experiment tracking
 - Dynamic preprocessing (optional SMOTE, PCA)
+
+Uses breast cancer dataset for demo; replace with your data in production.
 """
 
 from typing import Annotated, Optional
@@ -177,8 +179,8 @@ def check_and_apply_pca(
 @pipeline(
     model=Model(
         name="patient_readmission_predictor",
-        description="Predicts 30-day hospital readmission risk for patients",
-        tags=["healthcare", "classification", "production"],
+        description="Binary classification model for risk prediction",
+        tags=["classification", "sklearn", "production"],
     ),
     on_success=pipeline_success_hook,
     on_failure=pipeline_failure_hook,
@@ -194,7 +196,7 @@ def training_pipeline(
     max_features_for_pca: int = 50,
     pca_components: int = 30,
 ):
-    """Train and validate a patient readmission risk prediction model.
+    """Train and validate a binary classification model.
 
     This pipeline demonstrates:
     1. Clean Python code (no framework wrappers)

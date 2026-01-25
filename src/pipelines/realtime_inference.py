@@ -29,7 +29,9 @@ Example:
     # Invoke the deployed service
     curl -X POST http://localhost:8000/invoke \\
         -H "Content-Type: application/json" \\
-        -d '{"parameters": {"patient_data": {"age": 65, "num_procedures": 3}}}'
+        -d '{"parameters": {"patient_data": {"mean_radius": 14.0, "mean_texture": 19.0, ...}}}'
+
+Uses breast cancer dataset features for demo. See PatientData model for all fields.
 """
 
 from typing import Annotated, Any
