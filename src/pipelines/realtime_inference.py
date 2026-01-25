@@ -186,7 +186,7 @@ def predict(
     from zenml.client import Client
     from zenml.enums import ModelStages
 
-    # Load model directly from Model Control Plane
+    # Load model and scaler directly from Model Control Plane
     client = Client()
     model_version = client.get_model_version(
         model_name_or_id="patient_readmission_predictor",
@@ -194,14 +194,18 @@ def predict(
     )
 
     model_artifact = model_version.get_artifact("sklearn_classifier")
+    scaler_artifact = model_version.get_artifact("scaler")
     if model_artifact is None:
         raise RuntimeError("No production model found")
 
     model = model_artifact.load()
+    scaler = scaler_artifact.load() if scaler_artifact else None
     version = str(model_version.number)
 
-    # Make prediction
+    # Make prediction - apply scaler first if available
     features = np.array(processed_features["features"]).reshape(1, -1)
+    if scaler is not None:
+        features = scaler.transform(features)
     prediction = int(model.predict(features)[0])
     probability = float(model.predict_proba(features)[0, 1])
 
