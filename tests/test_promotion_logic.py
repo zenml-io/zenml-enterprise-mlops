@@ -4,8 +4,6 @@ These tests verify the promotion thresholds and validation rules
 without requiring a ZenML server connection.
 """
 
-
-
 # Extract promotion thresholds for testing (mirrors promote_model.py)
 PROMOTION_REQUIREMENTS = {
     "staging": {

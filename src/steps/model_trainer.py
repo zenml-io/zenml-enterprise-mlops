@@ -22,7 +22,8 @@ import mlflow
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
-from zenml import ArtifactConfig, ArtifactType, step
+from zenml import ArtifactConfig, step
+from zenml.enums import ArtifactType
 from zenml.logger import get_logger
 
 from src.utils import get_experiment_tracker_name

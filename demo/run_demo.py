@@ -54,9 +54,9 @@ def print_banner():
 
 def print_chapter_header(num: int, title: str):
     """Print chapter header."""
-    print(f"\n{'='*75}")
+    print(f"\n{'=' * 75}")
     print(f"  CHAPTER {num}: {title.upper()}")
-    print(f"{'='*75}\n")
+    print(f"{'=' * 75}\n")
 
 
 def wait_for_continue():

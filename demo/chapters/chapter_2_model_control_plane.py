@@ -10,9 +10,9 @@ Demonstrates:
 
 def print_section(title: str):
     """Print section header."""
-    print(f"\n{'─'*60}")
+    print(f"\n{'─' * 60}")
     print(f"  {title}")
-    print(f"{'─'*60}\n")
+    print(f"{'─' * 60}\n")
 
 
 def run():

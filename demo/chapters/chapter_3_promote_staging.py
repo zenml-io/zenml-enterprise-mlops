@@ -13,9 +13,9 @@ import sys
 
 def print_section(title: str):
     """Print section header."""
-    print(f"\n{'─'*60}")
+    print(f"\n{'─' * 60}")
     print(f"  {title}")
-    print(f"{'─'*60}\n")
+    print(f"{'─' * 60}\n")
 
 
 def run():
@@ -96,7 +96,9 @@ Platform team controls these - data scientists don't modify.
         return
 
     print_section("🚀 Promoting to Staging")
-    print("Executing: python scripts/promote_model.py --model patient_readmission_predictor --to-stage staging\n")
+    print(
+        "Executing: python scripts/promote_model.py --model patient_readmission_predictor --to-stage staging --force\n"
+    )
 
     try:
         result = subprocess.run(
@@ -107,6 +109,7 @@ Platform team controls these - data scientists don't modify.
                 "patient_readmission_predictor",
                 "--to-stage",
                 "staging",
+                "--force",  # For demo - replace existing staging model
             ],
             capture_output=True,
             text=True,

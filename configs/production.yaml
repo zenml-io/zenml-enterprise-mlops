@@ -1,0 +1,41 @@
+# Production Environment Configuration
+# Run with: zenml pipeline run src.pipelines.training.training_pipeline --config configs/production.yaml
+
+# Run name uses placeholders that ZenML will replace at runtime
+run_name: "{run_name_prefix}_production_{date}_{time}"
+
+# Cache disabled in production for reproducibility
+enable_cache: false
+
+# Pipeline parameters (maps to training_pipeline() arguments)
+parameters:
+  test_size: 0.2
+  n_estimators: 100          # Full ensemble size
+  max_depth: 10              # Full depth
+  min_accuracy: 0.80         # Strict threshold for production
+  enable_resampling: true    # Enable SMOTE for imbalanced data
+  imbalance_threshold: 0.3
+  enable_pca: false
+  max_features_for_pca: 50
+  pca_components: 30
+
+# Tags for production runs (merged with project_config.yaml tags)
+tags:
+  - "production"
+  - "release"
+
+# Docker and resource settings
+settings:
+  docker:
+    parent_image: python:3.11-slim
+    python_package_installer: uv
+    required_integrations:
+      - mlflow
+      - sklearn
+    apt_packages:
+      - git
+      - curl
+      - ca-certificates
+  resources:
+    cpu_count: 4
+    memory: 8GB

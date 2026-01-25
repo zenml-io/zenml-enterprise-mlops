@@ -18,14 +18,37 @@
 
 Hooks are automatically executed at pipeline lifecycle events
 to enforce platform policies without modifying user code.
+
+Available Hooks:
+    - alerter_success_hook: Send Slack notification on step success
+    - alerter_failure_hook: Send Slack notification on step failure
+    - pipeline_success_hook: Send notification on pipeline completion
+    - pipeline_failure_hook: Send notification on pipeline failure
+    - compliance_failure_hook: Log compliance events on failures
+    - monitoring_success_hook: Log monitoring metrics on success
+
+Note:
+    MLflow experiment tracking is handled automatically by ZenML's
+    experiment tracker stack component - no hook needed!
 """
 
+from governance.hooks.alerting_hook import (
+    alerter_failure_hook,
+    alerter_success_hook,
+    pipeline_failure_hook,
+    pipeline_success_hook,
+)
 from governance.hooks.compliance_hook import compliance_failure_hook
-from governance.hooks.mlflow_hook import mlflow_success_hook
 from governance.hooks.monitoring_hook import monitoring_success_hook
 
 __all__ = [
+    # Alerting hooks (Slack, etc.)
+    "alerter_success_hook",
+    "alerter_failure_hook",
+    "pipeline_success_hook",
+    "pipeline_failure_hook",
+    # Compliance hooks
     "compliance_failure_hook",
-    "mlflow_success_hook",
+    # Monitoring hooks
     "monitoring_success_hook",
 ]

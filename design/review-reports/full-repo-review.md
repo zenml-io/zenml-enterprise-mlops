@@ -41,7 +41,7 @@ This is a well-structured enterprise MLOps template demonstrating ZenML best pra
 
 3. **ZenML Best Practices**
    - Proper use of `Annotated` for artifact naming
-   - `ArtifactConfig` with `is_model_artifact=True` for model artifacts
+   - `ArtifactConfig` with `artifact_type=ArtifactType.MODEL` for model artifacts
    - Model Control Plane integration with stages
    - Hooks for governance enforcement
 

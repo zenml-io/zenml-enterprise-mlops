@@ -21,6 +21,8 @@ import pandas as pd
 from zenml import Model, get_step_context, pipeline, step
 from zenml.enums import ModelStages
 
+MODEL_NAME = "patient_readmission_predictor"
+
 
 @step
 def load_inference_data() -> Annotated[pd.DataFrame, "inference_data"]:
@@ -65,7 +67,7 @@ def predict_with_model(
         client = Client()
         try:
             staging_mv = client.get_model_version(
-                model_name_or_id="patient_readmission_predictor",
+                model_name_or_id=MODEL_NAME,
                 model_version_name_or_number_or_id=ModelStages.STAGING,
             )
             model_version = staging_mv
@@ -198,7 +200,7 @@ cause before considering promotion. Consider:
 
 @pipeline(
     model=Model(
-        name="patient_readmission_predictor",
+        name=MODEL_NAME,
         version=ModelStages.PRODUCTION,
     ),
 )

@@ -5,7 +5,7 @@ This folder contains **shared components** maintained by the platform team that 
 ## Overview
 
 The platform team provides:
-- **Hooks** - Automatic enforcement of governance policies
+- **Hooks** - Automatic alerts and compliance logging
 - **Steps** - Shared validation and quality gates
 - **Materializers** - Enhanced artifact handling with metadata tracking
 - **Docker** - Base images with curated dependencies
@@ -18,8 +18,9 @@ Data science teams import and use these components without needing to understand
 ```
 governance/
 ├── hooks/              # Automatic enforcement
-│   ├── mlflow_hook.py          # MLflow auto-logging
-│   └── compliance_hook.py      # Audit trail on failures
+│   ├── alerting_hook.py        # Slack/alerter notifications
+│   ├── compliance_hook.py      # Audit trail on failures
+│   └── monitoring_hook.py      # Metrics logging
 │
 ├── steps/              # Shared validation
 │   ├── validate_data_quality.py
@@ -37,26 +38,80 @@ governance/
     └── terraform/              # IaC configurations
 ```
 
+## Stack Components vs Hooks
+
+Understanding when to use stack components vs hooks:
+
+| Concern | Solution | Configuration |
+|---------|----------|---------------|
+| Experiment tracking (MLflow) | **Stack component** | `zenml stack update --experiment_tracker mlflow` |
+| Slack notifications | **Stack component + Hook** | Alerter in stack, hooks call it |
+| Compliance logging | **Hook** | `on_failure=compliance_failure_hook` |
+| Data validation | **Step** | `validate_data_quality(data)` |
+
+**Key insight**: MLflow tracking is automatic via the experiment tracker stack component - no hook needed!
+
 ## Usage Patterns
 
-### Hooks (Automatic Governance)
+### Hooks (Automatic Notifications)
 
-Hooks run automatically without data scientists needing to call them:
+Hooks send Slack notifications and log compliance events:
 
 ```python
 from zenml import pipeline
-from governance.hooks import mlflow_success_hook, compliance_failure_hook
+from governance.hooks import pipeline_success_hook, pipeline_failure_hook
 
 @pipeline(
-    on_success=mlflow_success_hook,      # Runs automatically on success
-    on_failure=compliance_failure_hook,  # Runs automatically on failure
+    on_success=pipeline_success_hook,    # Slack notification on completion
+    on_failure=pipeline_failure_hook,    # Slack alert + compliance log
 )
 def training_pipeline():
-    # Clean ML code - no governance mixed in
+    # Clean ML code - no alerting mixed in
     data = load_data()
     model = train_model(data)
     return model
 ```
+
+#### Available Hooks
+
+| Hook | When it runs | What it does |
+|------|--------------|--------------|
+| `alerter_success_hook` | Step succeeds | Sends Slack message |
+| `alerter_failure_hook` | Step fails | Sends Slack alert with error |
+| `pipeline_success_hook` | Pipeline completes | Sends completion notification |
+| `pipeline_failure_hook` | Pipeline fails | Sends alert + logs for compliance |
+| `compliance_failure_hook` | Pipeline fails | Logs to audit system |
+
+### Stack Component: Experiment Tracking (MLflow)
+
+MLflow experiment tracking is configured via stack components - no code needed:
+
+```bash
+# Register MLflow tracker
+zenml experiment-tracker register mlflow_tracker \
+    --flavor=mlflow \
+    --tracking_uri=<your-mlflow-uri>
+
+# Add to stack
+zenml stack update my_stack --experiment_tracker mlflow_tracker
+```
+
+Now MLflow logs automatically for any pipeline using that stack!
+
+### Stack Component: Slack Alerter
+
+```bash
+# Register Slack alerter
+zenml alerter register slack_alerter \
+    --flavor=slack \
+    --slack_token=<bot-token> \
+    --default_slack_channel_id=<channel-id>
+
+# Add to stack
+zenml stack update my_stack --alerter slack_alerter
+```
+
+The alerting hooks will automatically use the configured alerter.
 
 ### Shared Validation Steps
 
@@ -87,20 +142,6 @@ def training_pipeline():
     return model
 ```
 
-### Shared Materializers
-
-Enhanced materializers track additional metadata:
-
-```python
-from governance.materializers import EnhancedDataFrameMaterializer
-from zenml import step
-
-@step(output_materializers=EnhancedDataFrameMaterializer)
-def load_data() -> pd.DataFrame:
-    """Data automatically tracked with enhanced metadata"""
-    return pd.read_csv("data.csv")
-```
-
 ### Docker Settings (Container Configuration)
 
 Platform-managed Docker settings ensure consistent environments:
@@ -129,28 +170,31 @@ Available configurations:
 - `GPU_DOCKER_SETTINGS` - PyTorch with CUDA 11.8
 - `LIGHTWEIGHT_DOCKER_SETTINGS` - Minimal for preprocessing
 
-Customize with `get_docker_settings()`:
-
-```python
-from governance.docker import get_docker_settings
-
-settings = get_docker_settings(
-    base="standard",
-    extra_integrations=["huggingface"],
-    extra_requirements=["transformers>=4.30.0"],
-)
-```
-
 See [Docker README](docker/README.md) for full documentation.
 
 ## For Platform Engineers
 
+### Setting Up the Stack
+
+Recommended production stack:
+
+```bash
+# Create stack with all governance components
+zenml stack register production_stack \
+    --orchestrator kubernetes \
+    --artifact_store gcs \
+    --experiment_tracker mlflow \
+    --alerter slack \
+    --container_registry gcr
+```
+
 ### Adding New Hooks
 
 1. Create hook in `governance/hooks/`
-2. Test thoroughly
-3. Document in this README
-4. Announce to teams via Slack/email
+2. Use the alerter from the stack (don't hardcode Slack)
+3. Test thoroughly
+4. Export from `__init__.py`
+5. Document in this README
 
 ### Adding New Validation Steps
 
@@ -159,35 +203,34 @@ See [Docker README](docker/README.md) for full documentation.
 3. Make thresholds configurable
 4. Document usage examples
 
-### Updating Base Images
-
-1. Modify `governance/docker/Dockerfile.base`
-2. Test with representative pipelines
-3. Version the image (e.g., `v1.2.3`)
-4. Announce breaking changes
-
 ## For Data Scientists
 
 ### Importing Shared Components
 
 ```python
-# Hooks
-from governance.hooks import mlflow_success_hook, compliance_failure_hook
+# Alerting hooks
+from governance.hooks import pipeline_success_hook, pipeline_failure_hook
 
 # Validation steps
 from governance.steps import validate_data_quality, validate_model_performance
 
-# Materializers
-from governance.materializers import EnhancedDataFrameMaterializer
+# Docker settings
+from governance.docker import STANDARD_DOCKER_SETTINGS
 ```
 
 ### When to Use What
 
 | Component | When to Use | Example |
 |-----------|-------------|---------|
-| Hooks | Always (automatic) | MLflow logging, compliance |
-| Validation Steps | Data quality gates | Check missing values, schema |
-| Materializers | Enhanced metadata | Track DataFrame statistics |
+| Alerting Hooks | Pipeline notifications | Slack alerts on success/failure |
+| Validation Steps | Data/model quality gates | Check missing values, accuracy |
+| Docker Settings | Containerized execution | Consistent environments |
+
+### What's Automatic (No Code Needed)
+
+- **MLflow tracking** - Just use a stack with experiment_tracker
+- **Artifact storage** - Configured via artifact_store in stack
+- **Container builds** - Docker settings handle this
 
 ## Versioning
 
@@ -197,19 +240,9 @@ Shared components follow semantic versioning:
 - **Patch**: Bug fixes
 
 Current versions:
-- Hooks: `v1.0.0`
+- Hooks: `v2.0.0` (alerting-based)
 - Validation Steps: `v1.0.0`
-- Materializers: `v1.0.0`
-
-## Contributing
-
-Platform team members:
-1. Create feature branch
-2. Add tests
-3. Update this README
-4. Create PR to `develop`
-5. Get review from platform lead
-6. Merge and announce
+- Docker Settings: `v1.0.0`
 
 ## Support
 

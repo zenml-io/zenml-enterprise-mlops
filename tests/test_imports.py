@@ -5,7 +5,6 @@ without requiring a ZenML server or full pipeline execution.
 """
 
 
-
 class TestPipelineImports:
     """Test that all pipelines can be imported."""
 
@@ -96,12 +95,18 @@ class TestGovernanceImports:
     def test_import_hooks(self):
         """Governance hooks should import."""
         from governance.hooks import (
+            alerter_failure_hook,
+            alerter_success_hook,
             compliance_failure_hook,
-            mlflow_success_hook,
             monitoring_success_hook,
+            pipeline_failure_hook,
+            pipeline_success_hook,
         )
 
-        assert mlflow_success_hook is not None
+        assert alerter_success_hook is not None
+        assert alerter_failure_hook is not None
+        assert pipeline_success_hook is not None
+        assert pipeline_failure_hook is not None
         assert monitoring_success_hook is not None
         assert compliance_failure_hook is not None
 

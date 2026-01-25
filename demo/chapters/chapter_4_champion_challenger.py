@@ -7,15 +7,12 @@ Demonstrates:
 - Risk mitigation pattern
 """
 
-import subprocess
-import sys
-
 
 def print_section(title: str):
     """Print section header."""
-    print(f"\n{'─'*60}")
+    print(f"\n{'─' * 60}")
     print(f"  {title}")
-    print(f"{'─'*60}\n")
+    print(f"{'─' * 60}\n")
 
 
 def run():
@@ -112,25 +109,38 @@ Key points to highlight:
         return
 
     print_section("🚀 Running Champion/Challenger Comparison")
-    print("Executing: python run.py --pipeline champion_challenger\n")
+    print("Command: python run.py --pipeline champion_challenger\n")
 
-    try:
-        result = subprocess.run(
-            [sys.executable, "run.py", "--pipeline", "champion_challenger"],
-            capture_output=False,
-            text=True,
-            timeout=300,
-        )
+    print(
+        """
+Note: The champion/challenger pipeline requires models with linked artifacts.
+In a full setup, this pipeline would:
 
-        if result.returncode == 0:
-            print("\n✅ Comparison completed!")
-        else:
-            print(f"\n⚠️  Comparison finished with code: {result.returncode}")
+  1. Load inference data
+  2. Run predictions with PRODUCTION model (champion)
+  3. Run predictions with STAGING model (challenger)
+  4. Compare predictions side-by-side
+  5. Generate a comparison report
 
-    except subprocess.TimeoutExpired:
-        print("\n⏱️  Comparison timed out")
-    except FileNotFoundError:
-        print("\n⚠️  run.py not found")
+For this demo, we'll show the expected output:
+
+  ┌────────────────────────────────────────────────────────┐
+  │  CHAMPION vs CHALLENGER COMPARISON REPORT              │
+  ├────────────────────────────────────────────────────────┤
+  │  Champion (Production): v2                             │
+  │  Challenger (Staging):  v3                             │
+  │                                                        │
+  │  Total Samples: 1,000                                  │
+  │  Agreement Rate: 94.2%                                 │
+  │  Avg Probability Diff: 0.032                           │
+  │  Max Probability Diff: 0.156                           │
+  │                                                        │
+  │  RECOMMENDATION: REVIEW RECOMMENDED                    │
+  │  Models show reasonable agreement but some divergence. │
+  │  Review disagreement cases before promotion.           │
+  └────────────────────────────────────────────────────────┘
+"""
+    )
 
     print_section("📋 Understanding the Report")
     print(

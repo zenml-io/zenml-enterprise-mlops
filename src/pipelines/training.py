@@ -33,8 +33,8 @@ from zenml.logger import get_logger
 
 # Import platform governance
 from governance.hooks import (
-    compliance_failure_hook,
-    mlflow_success_hook,
+    pipeline_failure_hook,
+    pipeline_success_hook,
 )
 from governance.steps import validate_data_quality, validate_model_performance
 
@@ -180,8 +180,8 @@ def check_and_apply_pca(
         description="Predicts 30-day hospital readmission risk for patients",
         tags=["healthcare", "classification", "production"],
     ),
-    on_success=mlflow_success_hook,
-    on_failure=compliance_failure_hook,
+    on_success=pipeline_success_hook,
+    on_failure=pipeline_failure_hook,
 )
 def training_pipeline(
     test_size: float = 0.2,

@@ -37,8 +37,8 @@ from governance.docker.docker_settings import (
 
 __all__ = [
     "BASE_DOCKER_SETTINGS",
-    "STANDARD_DOCKER_SETTINGS",
     "GPU_DOCKER_SETTINGS",
     "LIGHTWEIGHT_DOCKER_SETTINGS",
+    "STANDARD_DOCKER_SETTINGS",
     "get_docker_settings",
 ]

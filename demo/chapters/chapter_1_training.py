@@ -13,9 +13,9 @@ import sys
 
 def print_section(title: str):
     """Print section header."""
-    print(f"\n{'─'*60}")
+    print(f"\n{'─' * 60}")
     print(f"  {title}")
-    print(f"{'─'*60}\n")
+    print(f"{'─' * 60}\n")
 
 
 def run():
@@ -29,7 +29,8 @@ In this chapter, we train a patient readmission prediction model.
 Key points to highlight:
   ✓ Data scientists write PURE PYTHON - no framework wrappers
   ✓ Platform governance is AUTOMATIC via hooks
-  ✓ MLflow logging happens WITHOUT any code changes
+  ✓ MLflow experiment tracking via stack component (zero code!)
+  ✓ Slack notifications on success/failure
   ✓ Model is versioned in the Model Control Plane
 """
     )
@@ -39,12 +40,12 @@ Key points to highlight:
         """
 Here's what the training pipeline looks like (src/pipelines/training.py):
 
-    from governance.hooks import mlflow_success_hook, compliance_failure_hook
+    from governance.hooks import pipeline_success_hook, pipeline_failure_hook
 
     @pipeline(
         model=Model(name="patient_readmission_predictor"),
-        on_success=mlflow_success_hook,      # ← Platform governance
-        on_failure=compliance_failure_hook,  # ← Automatic compliance
+        on_success=pipeline_success_hook,    # ← Slack notification
+        on_failure=pipeline_failure_hook,    # ← Slack alert + compliance log
     )
     def training_pipeline():
         X_train, X_test, y_train, y_test = load_data()
@@ -55,8 +56,8 @@ Here's what the training pipeline looks like (src/pipelines/training.py):
         return model, metrics
 
 Notice:
-  • No MLflow imports in the ML code
-  • No compliance logging code
+  • MLflow tracking is automatic (experiment_tracker in stack)
+  • Slack alerts on success/failure (alerter in stack)
   • Just clean, readable Python
 """
     )

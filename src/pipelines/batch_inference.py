@@ -31,7 +31,7 @@ from zenml import Model, pipeline, step
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
 
-from governance.hooks import compliance_failure_hook, mlflow_success_hook
+from governance.hooks import pipeline_failure_hook, pipeline_success_hook
 from src.steps import load_data, predict_batch
 
 logger = get_logger(__name__)
@@ -86,8 +86,8 @@ def apply_scaler(
         name="patient_readmission_predictor",
         version=ModelStages.PRODUCTION,  # Always use production model
     ),
-    on_success=mlflow_success_hook,
-    on_failure=compliance_failure_hook,
+    on_success=pipeline_success_hook,
+    on_failure=pipeline_failure_hook,
 )
 def batch_inference_pipeline():
     """Run batch inference using the production model.

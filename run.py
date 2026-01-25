@@ -15,11 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Main script to run ZenML pipelines.
+"""Main script to run ZenML pipelines locally.
+
+This script is for local development. For CI/CD deployments, use
+scripts/build_snapshot.py which creates immutable pipeline snapshots.
 
 Usage:
-    python run.py --pipeline training
+    # Run with environment config
+    python run.py --pipeline training --environment local
+    python run.py --pipeline training --environment staging
+
+    # Run with direct parameters (overrides config)
     python run.py --pipeline training --n-estimators 200
+
+    # Other pipelines
     python run.py --pipeline batch_inference
     python run.py --pipeline champion_challenger
 
@@ -27,6 +36,8 @@ For real-time inference (Pipeline Deployments):
     zenml pipeline deploy src.pipelines.realtime_inference.inference_service \\
         --name readmission-api
 """
+
+from pathlib import Path
 
 import click
 from zenml.logger import get_logger
@@ -42,51 +53,72 @@ logger = get_logger(__name__)
     help="Which pipeline to run",
 )
 @click.option(
+    "--environment",
+    type=click.Choice(["local", "staging", "production"]),
+    default="local",
+    help="Environment config to use (loads configs/{environment}.yaml)",
+)
+@click.option(
     "--test-size",
     type=float,
-    default=0.2,
-    help="Fraction of data for testing",
+    default=None,
+    help="Fraction of data for testing (overrides config)",
 )
 @click.option(
     "--n-estimators",
     type=int,
-    default=100,
-    help="Number of trees in Random Forest",
+    default=None,
+    help="Number of trees in Random Forest (overrides config)",
 )
 @click.option(
     "--max-depth",
     type=int,
-    default=10,
-    help="Maximum depth of trees",
+    default=None,
+    help="Maximum depth of trees (overrides config)",
 )
 @click.option(
     "--min-accuracy",
     type=float,
-    default=0.7,
-    help="Minimum accuracy required for validation",
+    default=None,
+    help="Minimum accuracy required for validation (overrides config)",
 )
 def main(
     pipeline: str,
-    test_size: float,
-    n_estimators: int,
-    max_depth: int,
-    min_accuracy: float,
+    environment: str,
+    test_size: float | None,
+    n_estimators: int | None,
+    max_depth: int | None,
+    min_accuracy: float | None,
 ):
     """Run ZenML pipelines for patient readmission prediction.
 
-    This script provides a simple CLI interface to run different pipelines.
+    Uses environment-specific config from configs/{environment}.yaml.
+    Command-line arguments override config file values.
     """
-    logger.info(f"Running {pipeline} pipeline...")
+    config_path = Path(f"configs/{environment}.yaml")
+    logger.info(f"Running {pipeline} pipeline with {environment} config...")
 
     if pipeline == "training":
         from src.pipelines.training import training_pipeline
 
-        training_pipeline(
-            test_size=test_size,
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            min_accuracy=min_accuracy,
-        )
+        # Build kwargs from CLI args (only include if explicitly set)
+        kwargs = {}
+        if test_size is not None:
+            kwargs["test_size"] = test_size
+        if n_estimators is not None:
+            kwargs["n_estimators"] = n_estimators
+        if max_depth is not None:
+            kwargs["max_depth"] = max_depth
+        if min_accuracy is not None:
+            kwargs["min_accuracy"] = min_accuracy
+
+        # Run with config file, CLI args override config
+        if config_path.exists():
+            training_pipeline.with_options(config_path=str(config_path))(**kwargs)
+        else:
+            # Fallback to direct call with defaults
+            training_pipeline(**kwargs)
+
         logger.info("Training pipeline completed successfully!")
 
     elif pipeline == "batch_inference":
@@ -100,10 +132,6 @@ def main(
 
         champion_challenger_pipeline()
         logger.info("Champion/Challenger comparison completed successfully!")
-
-    logger.info(
-        "\nCheck the ZenML dashboard for detailed results: http://localhost:8237"
-    )
 
 
 if __name__ == "__main__":

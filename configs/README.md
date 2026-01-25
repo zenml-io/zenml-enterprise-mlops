@@ -1,19 +1,28 @@
 # ZenML Pipeline Configurations
 
-This directory contains **real ZenML configuration files** that can be passed directly to pipelines.
+This directory contains environment-specific configurations for ZenML pipelines.
+
+## Configuration Hierarchy
+
+```
+project_config.yaml          # Central source of truth (model name, tags, etc.)
+├── configs/local.yaml       # Local development overrides
+├── configs/staging.yaml     # Staging environment overrides
+└── configs/production.yaml  # Production environment overrides
+```
 
 ## Usage
 
 ### Via CLI
 
 ```bash
-# Run training pipeline with staging config
+# Run with staging config
 zenml pipeline run src.pipelines.training.training_pipeline \
-    --config configs/training_staging.yaml
+    --config configs/staging.yaml
 
-# Run training pipeline with production config
+# Run with production config
 zenml pipeline run src.pipelines.training.training_pipeline \
-    --config configs/training_production.yaml
+    --config configs/production.yaml
 ```
 
 ### Via Python
@@ -23,57 +32,82 @@ from src.pipelines.training import training_pipeline
 
 # Run with config file
 training_pipeline.with_options(
-    config_path="configs/training_staging.yaml"
+    config_path="configs/staging.yaml"
 )()
+```
+
+### Via run.py (Local Development)
+
+```bash
+# Run locally with environment-specific config
+python run.py --environment local
+python run.py --environment staging
+```
+
+### Via build.py (CI/CD Snapshots)
+
+```bash
+# Create staging snapshot (auto-run)
+python scripts/build_snapshot.py --environment staging --stack my-stack --run
+
+# Create production snapshot (manual approval required)
+python scripts/build_snapshot.py --environment production --stack my-stack
 ```
 
 ## Configuration Files
 
-| File | Purpose |
-|------|---------|
-| `training_staging.yaml` | Staging: faster iteration, lower thresholds (50 trees, 70% accuracy) |
-| `training_production.yaml` | Production: full model, strict thresholds (100 trees, 80% accuracy) |
+| File | Cache | Thresholds | Use Case |
+|------|-------|------------|----------|
+| `local.yaml` | Enabled | 70% accuracy | Fast local iteration |
+| `staging.yaml` | Disabled | 70% accuracy | Pre-release validation |
+| `production.yaml` | Disabled | 80% accuracy | Production deployment |
 
 ## Configuration Structure
 
 ZenML configs follow this structure:
 
 ```yaml
-# Pipeline parameters (passed to pipeline function)
+# Run naming (uses ZenML substitution placeholders)
+run_name: "{run_name_prefix}_staging_{date}_{time}"
+
+# Cache behavior
+enable_cache: false
+
+# Pipeline parameters
 parameters:
   n_estimators: 100
   max_depth: 10
 
-# Pipeline-level settings (docker, resources, etc.)
+# Tags (merged with project_config.yaml tags)
+tags:
+  - "staging"
+
+# Settings (docker, resources, etc.)
 settings:
   docker:
     parent_image: python:3.11-slim
-  resources:
-    cpu_count: 4
-
-# Step-specific overrides
-steps:
-  train_model:
-    parameters:
-      learning_rate: 0.01
-    settings:
-      resources:
-        cpu_count: 8
 ```
 
-## Environment-Specific Settings
+## Central Configuration
 
-### Staging
-- Smaller models for faster iteration (`n_estimators: 50`)
-- Lower validation thresholds (`min_accuracy: 0.70`)
-- Standard resources (2 CPU, 4GB RAM)
+All project settings are defined in `project_config.yaml` at the repo root:
 
-### Production
-- Full model capacity (`n_estimators: 100`)
-- Strict validation (`min_accuracy: 0.80`)
-- Higher resources (4 CPU, 8GB RAM)
+```yaml
+model:
+  name: "patient_readmission_predictor"
+  tags: ["healthcare", "classification"]
+
+pipeline:
+  run_name_prefix: "readmission_training"
+  tags: ["training"]
+
+snapshot:
+  prefix: "readmission_model"
+```
+
+Environment configs override/extend these base settings.
 
 ## See Also
 
+- [project_config.yaml](../project_config.yaml) - Central configuration
 - [ZenML Configuration Docs](https://docs.zenml.io/how-to/pipeline-development/use-configuration-files)
-- [Docker Settings](../governance/docker/docker_settings.py) - Platform-managed Docker configurations

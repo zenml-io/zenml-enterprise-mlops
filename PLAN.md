@@ -191,7 +191,7 @@ from zenml import ArtifactConfig
 @step
 def train() -> Annotated[
     ClassifierMixin,
-    ArtifactConfig(name="model", is_model_artifact=True)
+    ArtifactConfig(name="model", artifact_type=ArtifactType.MODEL)
 ]:
     return model
 ```

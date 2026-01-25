@@ -25,6 +25,13 @@ Pipeline snapshots are a ZenML Pro feature that enables:
 
 This script creates snapshots for staging and production environments,
 typically called from CI/CD (GitHub Actions).
+
+Usage:
+    # Staging (auto-run)
+    python scripts/build_snapshot.py --environment staging --stack my-stack --run
+
+    # Production (manual trigger later)
+    python scripts/build_snapshot.py --environment production --stack my-stack
 """
 
 import os
@@ -36,18 +43,18 @@ from zenml.logger import get_logger
 
 logger = get_logger(__name__)
 
+SNAPSHOT_PREFIX = "readmission_model"
+
 
 def get_snapshot_name(
     environment: str,
     git_sha: Optional[str] = None,
-    prefix: str = "readmission_model",
 ) -> str:
     """Generate a snapshot name following GitOps conventions.
 
     Args:
         environment: "staging" or "production"
         git_sha: Git commit SHA (from CI/CD)
-        prefix: Model/pipeline prefix
 
     Returns:
         Snapshot name like "STG_readmission_model_abc1234"
@@ -56,10 +63,9 @@ def get_snapshot_name(
 
     if git_sha:
         short_sha = git_sha[:7]
-        return f"{env_prefix}_{prefix}_{short_sha}"
+        return f"{env_prefix}_{SNAPSHOT_PREFIX}_{short_sha}"
     else:
-        # For local development
-        return f"{env_prefix}_{prefix}_local"
+        return f"{env_prefix}_{SNAPSHOT_PREFIX}_local"
 
 
 @click.command()
@@ -113,37 +119,15 @@ def main(
     Snapshots enable GitOps workflows:
     - Staging: Create snapshot AND run (continuous training)
     - Production: Create snapshot only (manual approval to run)
-
-    Example:
-        # Staging (auto-run)
-        python scripts/build_snapshot.py --environment staging --stack my-stack --run
-
-        # Production (manual trigger later)
-        python scripts/build_snapshot.py --environment production --stack my-stack
     """
     client = Client()
-
-    # Check if Pro (snapshots require Pro)
-    try:
-        # This will fail in OSS - we import to check availability
-        from zenml.zen_server.utils import server_config  # noqa: F401
-
-        logger.info("✅ ZenML Pro detected - snapshot creation enabled")
-    except ImportError as e:
-        logger.error(
-            "❌ Pipeline snapshots require ZenML Pro. "
-            "For OSS, use direct pipeline execution: python run.py"
-        )
-        raise click.ClickException(
-            "Snapshot creation requires ZenML Pro. See: https://zenml.io/pro"
-        ) from e
 
     # Set active stack
     remote_stack = client.get_stack(stack)
     os.environ["ZENML_ACTIVE_STACK_ID"] = str(remote_stack.id)
     logger.info(f"Using stack: {remote_stack.name}")
 
-    # Generate snapshot name
+    # Generate snapshot name if not provided
     if name is None:
         name = get_snapshot_name(environment=environment, git_sha=git_sha)
 
@@ -156,10 +140,7 @@ def main(
         from src.pipelines.training import training_pipeline
 
         snapshot = training_pipeline.with_options(
-            # Optional: Load environment-specific config
-            # Uncomment to use configs/{environment}.yaml for pipeline settings
-            # Note: Config structure must match ZenML's configuration schema
-            # config_path=f"configs/{environment}.yaml",
+            config_path=f"configs/{environment}.yaml",
         ).create_snapshot(name=name)
 
     elif pipeline == "batch_inference":
@@ -167,13 +148,12 @@ def main(
 
         snapshot = batch_inference_pipeline.create_snapshot(name=name)
 
-    logger.info(f"✅ Snapshot created: {snapshot.id}")
+    logger.info(f"Snapshot created: {snapshot.id}")
     logger.info(f"   Name: {snapshot.name}")
-    logger.info(f"   Version: {snapshot.version}")
 
     # Optionally trigger the run
     if run:
-        logger.info("🚀 Triggering pipeline run from snapshot...")
+        logger.info("Triggering pipeline run from snapshot...")
 
         run_config = snapshot.config_template
         run_response = client.trigger_pipeline(
@@ -181,12 +161,10 @@ def main(
             run_configuration=run_config,
         )
 
-        logger.info(f"✅ Pipeline run triggered: {run_response.id}")
-        logger.info(f"   Dashboard: {run_response.get_dashboard_url()}")
+        logger.info(f"Pipeline run triggered: {run_response.id}")
     else:
         logger.info(
-            "ℹ️  Snapshot created but not run. "
-            "Trigger manually via UI or API when ready."
+            "Snapshot created but not run. Trigger manually via UI or API when ready."
         )
 
 
