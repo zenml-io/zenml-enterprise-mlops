@@ -20,9 +20,9 @@ This step is maintained by the platform team and required in all pipelines
 to ensure data quality standards are met.
 """
 
-import pandas as pd
-from typing_extensions import Annotated
+from typing import Annotated
 
+import pandas as pd
 from zenml import step
 from zenml.logger import get_logger
 

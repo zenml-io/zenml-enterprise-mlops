@@ -20,12 +20,12 @@ Hooks are automatically executed at pipeline lifecycle events
 to enforce platform policies without modifying user code.
 """
 
+from governance.hooks.compliance_hook import compliance_failure_hook
 from governance.hooks.mlflow_hook import mlflow_success_hook
 from governance.hooks.monitoring_hook import monitoring_success_hook
-from governance.hooks.compliance_hook import compliance_failure_hook
 
 __all__ = [
+    "compliance_failure_hook",
     "mlflow_success_hook",
     "monitoring_success_hook",
-    "compliance_failure_hook",
 ]

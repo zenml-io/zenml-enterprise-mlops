@@ -40,9 +40,7 @@ def monitoring_success_hook() -> None:
 
         # Placeholder for monitoring integration
         # In production, this would send metrics to Arize/Datadog/etc.
-        logger.info(
-            f"Platform governance: Monitoring data sent for step '{step_name}'"
-        )
+        logger.info(f"Platform governance: Monitoring data sent for step '{step_name}'")
 
     except Exception as e:
         logger.warning(f"Monitoring hook failed: {e}")

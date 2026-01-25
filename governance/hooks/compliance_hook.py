@@ -45,7 +45,7 @@ def compliance_failure_hook(exception: Exception) -> None:
         # Log failure for audit trail
         logger.error(
             f"Compliance audit: Pipeline '{pipeline_name}' step '{step_name}' "
-            f"failed with error: {str(exception)}"
+            f"failed with error: {exception!s}"
         )
 
         # In production, this would:

@@ -1,0 +1,72 @@
+# Staging Environment Configuration
+# Settings specific to the staging environment for testing and validation
+
+environment: staging
+
+# ZenML stack configuration
+stack:
+  name: staging-stack
+  components:
+    orchestrator: vertex-staging  # Or kubernetes-staging, airflow-staging
+    artifact_store: gcs-staging  # Or s3-staging, azure-staging
+    experiment_tracker: mlflow-staging
+    model_registry: mlflow-staging
+    container_registry: gcr-staging  # Or ecr-staging, acr-staging
+
+# Model configuration overrides for staging
+model:
+  hyperparameters:
+    n_estimators: 50  # Smaller models for faster iteration
+    max_depth: 5
+
+  validation:
+    min_accuracy: 0.70
+    min_precision: 0.70
+    min_recall: 0.70
+    min_f1: 0.70
+
+# Pipeline execution settings
+pipeline:
+  enable_cache: false  # Always run fresh in staging
+  schedule: null  # Manual trigger only via PR
+
+  resources:
+    cpu: 2
+    memory: 4Gi
+    gpu: 0
+
+# Data settings
+data:
+  sample_size: null  # Use full dataset
+  use_synthetic: false
+  validation_split: 0.2
+
+# Deployment settings
+deployment:
+  auto_deploy: false
+  approval_required: false  # Automatic in staging
+
+  serving:
+    replicas: 1
+    autoscaling:
+      enabled: false
+
+# Monitoring and logging
+monitoring:
+  verbose_logging: true
+  log_level: DEBUG
+  sample_rate: 1.0  # Log everything in staging
+
+  alerts:
+    enabled: false  # No alerts in staging
+
+# Security settings (relaxed for testing)
+security:
+  require_approval: false
+  audit_logging: true
+
+# Retention policy
+retention:
+  pipeline_runs: 50  # Keep last 50 runs
+  models: 10  # Keep last 10 model versions
+  artifacts: 30  # Days to keep artifacts

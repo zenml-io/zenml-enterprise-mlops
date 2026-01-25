@@ -1,0 +1,60 @@
+# Example Terraform Variables for GCP Production
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars - it's in .gitignore
+
+# GCP project ID (use dedicated production project)
+project_id = "your-gcp-project-production"
+
+# GCP region (consider multi-region for HA)
+region = "us-central1"
+
+# ZenML stack name (will be registered with your ZenML server)
+stack_name = "gcp-production"
+
+# Deployment name (used in GCP resource naming)
+deployment_name = "zenml-production"
+
+# Orchestrator type: "vertex", "airflow", or "skypilot"
+# Recommendation: Use "vertex" for production (managed, scalable)
+# Note: "local" is not recommended for production environments
+orchestrator = "vertex"
+
+# Optional: Additional labels (required for compliance and cost tracking)
+labels = {
+  team        = "ml-platform"
+  cost_center = "engineering"
+  owner       = "mlops-team"
+  environment = "production"
+  criticality = "high"
+  compliance  = "required"
+  backup      = "enabled"
+}
+
+# PRODUCTION DEPLOYMENT CHECKLIST:
+# ================================
+#
+# Before running terraform apply:
+#
+# 1. Configure remote state backend (uncomment in main.tf)
+# 2. Set environment variables:
+#    export ZENML_SERVER_URL="https://your-zenml-server.com"
+#    export ZENML_API_KEY="<your-service-account-api-key>"
+#
+# 3. Authenticate with GCP:
+#    gcloud auth application-default login
+#
+# 4. Enable required GCP APIs:
+#    - Vertex AI API (if using vertex orchestrator)
+#    - Artifact Registry API
+#    - Cloud Storage API
+#    - IAM API
+#
+# 5. Review IAM permissions and service accounts
+# 6. Set up monitoring and alerting
+# 7. Document deployment in change management system
+# 8. Schedule regular backups of Terraform state
+#
+# Post-deployment:
+# - Test stack connectivity: zenml stack describe gcp-production
+# - Run validation pipeline before promoting models
+# - Set up automated monitoring dashboards

@@ -16,10 +16,10 @@
 
 """Prediction step for batch inference."""
 
+from typing import Annotated
+
 import pandas as pd
 from sklearn.base import ClassifierMixin
-from typing_extensions import Annotated
-
 from zenml import step
 from zenml.logger import get_logger
 

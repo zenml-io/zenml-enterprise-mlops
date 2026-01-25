@@ -18,14 +18,14 @@
 
 from src.steps.data_loader import load_data
 from src.steps.feature_engineering import engineer_features
-from src.steps.model_trainer import train_model
 from src.steps.model_evaluator import evaluate_model
+from src.steps.model_trainer import train_model
 from src.steps.predictor import predict_batch
 
 __all__ = [
-    "load_data",
     "engineer_features",
-    "train_model",
     "evaluate_model",
+    "load_data",
     "predict_batch",
+    "train_model",
 ]

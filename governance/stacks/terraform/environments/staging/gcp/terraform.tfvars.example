@@ -1,0 +1,34 @@
+# Example Terraform Variables for GCP Staging
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars - it's in .gitignore
+
+# GCP project ID
+project_id = "your-gcp-project-staging"
+
+# GCP region
+region = "us-central1"
+
+# ZenML stack name (will be registered with your ZenML server)
+stack_name = "gcp-staging"
+
+# Deployment name (used in GCP resource naming)
+deployment_name = "zenml-staging"
+
+# Orchestrator type: "vertex", "airflow", "skypilot", or "local"
+# Note: Vertex AI and Airflow require additional GCP APIs enabled
+orchestrator = "local"
+
+# Optional: Additional labels
+labels = {
+  team        = "ml-platform"
+  cost_center = "engineering"
+  owner       = "mlops-team"
+  environment = "staging"
+}
+
+# IMPORTANT: Before running terraform apply, set these environment variables:
+# export ZENML_SERVER_URL="https://your-zenml-server.com"
+# export ZENML_API_KEY="<your-service-account-api-key>"
+#
+# And authenticate with GCP:
+# gcloud auth application-default login

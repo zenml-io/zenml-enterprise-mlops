@@ -86,7 +86,11 @@ def validate_promotion(model_version, to_stage: str) -> bool:
     for metric, min_value in stage_requirements.items():
         # Metrics are already stored as metadata values
         metric_obj = metrics.get(metric)
-        actual_value = float(metric_obj.value) if hasattr(metric_obj, 'value') else float(metric_obj)
+        actual_value = (
+            float(metric_obj.value)
+            if hasattr(metric_obj, "value")
+            else float(metric_obj)
+        )
         if actual_value < min_value:
             failures.append(
                 f"{metric}: {actual_value:.3f} < {min_value:.3f} (required)"
@@ -156,7 +160,7 @@ def promote_model(
     """
     client = Client()
 
-    logger.info(f"🚀 Model Promotion Script")
+    logger.info("🚀 Model Promotion Script")
     logger.info(f"Model: {model}")
     logger.info(f"Target stage: {to_stage}")
 
@@ -173,9 +177,7 @@ def promote_model(
                 "production": ModelStages.PRODUCTION,
                 "latest": ModelStages.LATEST,
             }
-            model_version = client.get_model_version(
-                model, stage_map[from_stage]
-            )
+            model_version = client.get_model_version(model, stage_map[from_stage])
         else:
             logger.info("Promoting latest version")
             model_version = client.get_model_version(model, ModelStages.LATEST)
@@ -204,9 +206,7 @@ def promote_model(
                         f"Model version {current_model_in_stage.version} is already in {to_stage}. "
                         f"Use --force to demote it."
                     )
-                    raise ValueError(
-                        f"Another model is already in {to_stage} stage"
-                    )
+                    raise ValueError(f"Another model is already in {to_stage} stage")
                 else:
                     logger.warning(
                         f"Demoting version {current_model_in_stage.version} from {to_stage}"
@@ -227,7 +227,9 @@ def promote_model(
 
         model_version.set_stage(stage=stage_map[to_stage], force=force)
 
-        logger.info(f"✅ Successfully promoted {model} v{model_version.number} to {to_stage}!")
+        logger.info(
+            f"✅ Successfully promoted {model} v{model_version.number} to {to_stage}!"
+        )
         logger.info(
             f"Dashboard: https://cloud.zenml.io/workspaces/zenml-projects/projects/.../model-versions/{model_version.id}"
         )
@@ -236,7 +238,7 @@ def promote_model(
         logger.info("📋 Promotion logged for compliance audit trail")
 
     except Exception as e:
-        logger.error(f"❌ Promotion failed: {str(e)}")
+        logger.error(f"❌ Promotion failed: {e!s}")
         raise
 
 

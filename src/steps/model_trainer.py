@@ -16,40 +16,21 @@
 
 """Model training step with MLflow integration."""
 
+from typing import Annotated
+
 import mlflow
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.base import ClassifierMixin
-from typing_extensions import Annotated
-
-from zenml import ArtifactConfig, get_step_context, step
-from zenml.client import Client
-from zenml.integrations.mlflow.experiment_trackers import (
-    MLFlowExperimentTracker,
-)
+from sklearn.ensemble import RandomForestClassifier
+from zenml import ArtifactConfig, step
 from zenml.logger import get_logger
+
+from src.utils import get_experiment_tracker_name
 
 logger = get_logger(__name__)
 
-# Get experiment tracker from active stack
-experiment_tracker = Client().active_stack.experiment_tracker
 
-if experiment_tracker and isinstance(
-    experiment_tracker, MLFlowExperimentTracker
-):
-    EXPERIMENT_TRACKER_NAME = experiment_tracker.name
-else:
-    EXPERIMENT_TRACKER_NAME = None
-    logger.warning(
-        "No MLflow experiment tracker found in active stack. "
-        "MLflow autologging will be disabled."
-    )
-
-
-@step(
-    experiment_tracker=EXPERIMENT_TRACKER_NAME,
-    enable_cache=False,  # Disable caching for training steps
-)
+@step(enable_cache=False)
 def train_model(
     X_train: pd.DataFrame,
     y_train: pd.Series,
@@ -80,9 +61,15 @@ def train_model(
         f"max_depth={max_depth}"
     )
 
-    # Enable MLflow autologging
-    if EXPERIMENT_TRACKER_NAME:
+    # Get experiment tracker name (evaluated at step runtime, not import time)
+    experiment_tracker_name = get_experiment_tracker_name()
+
+    # Enable MLflow autologging if tracker is available
+    if experiment_tracker_name:
         mlflow.sklearn.autolog()
+        logger.info(
+            f"MLflow autologging enabled with tracker: {experiment_tracker_name}"
+        )
 
     # Train model
     model = RandomForestClassifier(
@@ -95,8 +82,8 @@ def train_model(
 
     logger.info("Model training completed")
 
-    # Log additional custom metrics if needed
-    if EXPERIMENT_TRACKER_NAME:
+    # Log additional custom metrics if MLflow is available
+    if experiment_tracker_name:
         mlflow.log_param("model_type", "RandomForestClassifier")
         mlflow.log_param("use_case", "patient_readmission_prediction")
 

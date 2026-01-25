@@ -1,44 +1,99 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
 .Python
 *.egg-info/
+dist/
+build/
+.eggs/
 
 # Virtual environments
-venv/
 .venv/
+venv/
+ENV/
 env/
+
+# ZenML
+.zen/
+*.db
+zenml.db
+
+# MLflow
+mlruns/
+mlartifacts/
 
 # IDEs
 .vscode/
 .idea/
 *.swp
-.DS_Store
+*.swo
+*~
 
-# ZenML
-.zen/
-zenml_local.db
-
-# MLflow
-mlruns/
-
-# Data
-data/
-*.csv
-
-# Secrets
-.env
-secrets/
-*.key
+# Notebooks
+.ipynb_checkpoints/
+notebooks/
 
 # Git
 .git/
 .gitignore
+.gitattributes
 
-# Docs
+# CI/CD
+.github/
+
+# Documentation
 docs/
 *.md
+README.md
+
+# Data
+data/
+*.csv
+*.parquet
+*.pkl
+*.pickle
+
+# Models (these go in artifact store)
+models/
+*.h5
+*.pt
+*.pth
+*.onnx
+*.pb
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+terraform.tfvars.json
 
 # Tests
 tests/
+pytest.ini
 .pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+*.cover
+
+# Environment files
+.env
+.env.local
+*.key
+*.pem
+*.crt
+
+# Design documents
+design/

@@ -16,11 +16,10 @@
 
 """Feature engineering step for patient data."""
 
+from typing import Annotated
+
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from typing import Tuple
-from typing_extensions import Annotated
-
 from zenml import step
 from zenml.logger import get_logger
 
@@ -31,7 +30,7 @@ logger = get_logger(__name__)
 def engineer_features(
     X_train: pd.DataFrame,
     X_test: pd.DataFrame,
-) -> Tuple[
+) -> tuple[
     Annotated[pd.DataFrame, "X_train_scaled"],
     Annotated[pd.DataFrame, "X_test_scaled"],
     Annotated[StandardScaler, "scaler"],

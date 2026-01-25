@@ -1,5 +1,5 @@
 # ZenML and core integrations
-zenml[server]>=0.70.0
+zenml[server]>=0.92.0
 mlflow>=2.2.1
 
 # ML Libraries
@@ -17,6 +17,9 @@ click>=8.0.0
 # Development
 jupyter>=1.0.0
 notebook>=7.0.0
+
+# Optional: Dynamic pipeline dependencies (uncomment for SMOTE support)
+# imbalanced-learn>=0.11.0
 
 # Optional: Cloud providers (uncomment as needed)
 # zenml[aws]

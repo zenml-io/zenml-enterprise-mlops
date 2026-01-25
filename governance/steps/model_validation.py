@@ -20,8 +20,7 @@ This step enforces minimum performance requirements for models
 before they can be promoted to production.
 """
 
-from typing import Dict
-from typing_extensions import Annotated
+from typing import Annotated
 
 from zenml import step
 from zenml.logger import get_logger
@@ -31,7 +30,7 @@ logger = get_logger(__name__)
 
 @step
 def validate_model_performance(
-    metrics: Dict[str, float],
+    metrics: dict[str, float],
     min_accuracy: float = 0.7,
     min_precision: float = 0.7,
     min_recall: float = 0.7,
@@ -71,9 +70,7 @@ def validate_model_performance(
 
     # Check recall
     if metrics.get("recall", 0) < min_recall:
-        failures.append(
-            f"Recall {metrics.get('recall', 0):.3f} < {min_recall:.3f}"
-        )
+        failures.append(f"Recall {metrics.get('recall', 0):.3f} < {min_recall:.3f}")
 
     if failures:
         failure_msg = "Model validation failed:\n" + "\n".join(

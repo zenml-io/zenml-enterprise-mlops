@@ -9,8 +9,21 @@ This template demonstrates enterprise-grade machine learning operations using Ze
 - ✅ Complete audit trails and lineage tracking
 - ✅ Batch inference with model aliases
 - ✅ Clean developer experience (no wrapper code!)
+- ✅ Dynamic preprocessing (optional SMOTE, PCA based on data characteristics)
 
 Built for healthcare and regulated industries, but applicable to any enterprise MLOps use case.
+
+## 🎯 Target Audience
+
+**Primary**: **ZenML Pro** users building enterprise MLOps platforms for multiple teams/departments
+
+**Secondary**: **ZenML OSS** users can follow the single-team patterns - all core features work with OSS
+
+**Key Differences**:
+- 🏢 **Pro**: Multi-project isolation, fine-grained RBAC, pipeline snapshots, audit logs
+- 🌟 **OSS**: Single project, environment-based stacks, hook-based governance
+
+See [Organization Guide](docs/ORGANIZATION_GUIDE.md) for detailed multi-tenancy patterns and OSS vs Pro capabilities.
 
 ## 🎯 Use Case
 
@@ -21,6 +34,7 @@ Built for healthcare and regulated industries, but applicable to any enterprise 
 ### Prerequisites
 
 - Python 3.9+
+- **ZenML 0.92.0 or higher** (see [Migration Notes](#migration-notes) if upgrading from earlier versions)
 - Docker (for containerized execution)
 - Git and GitHub account (for GitOps features)
 
@@ -63,7 +77,7 @@ Check the ZenML dashboard at http://localhost:8237 to see your pipeline run!
 
 ```
 zenml-enterprise-mlops/
-├── platform/              # Platform team governance (hooks, base images, shared steps)
+├── governance/            # Platform team governance (hooks, base images, shared steps)
 ├── src/                   # Data scientist workspace (pipelines, steps, utils)
 ├── .github/workflows/     # GitOps automation (CI/CD, promotion, scheduling)
 ├── configs/               # Configuration files
@@ -102,7 +116,7 @@ def training_pipeline():
 Platform team enforces governance without touching pipeline code:
 
 ```python
-# platform/hooks/mlflow_hook.py
+# governance/hooks/mlflow_hook.py
 def mlflow_logging_hook():
     """Automatically logs metadata to MLflow after every step"""
     context = get_step_context()
@@ -148,12 +162,30 @@ training_data = training_run.steps["load_data"].outputs["data"]
 code_commit = training_run.metadata["git_commit"]
 ```
 
+### 6. Dynamic Preprocessing
+
+```python
+# Training pipeline with optional dynamic features
+training_pipeline(
+    enable_resampling=True,      # Auto-apply SMOTE if class imbalance detected
+    imbalance_threshold=0.3,     # Trigger if minority class < 30%
+    enable_pca=True,              # Auto-apply PCA if too many features
+    max_features_for_pca=50,     # Trigger if features > 50
+)
+
+# Pipeline adapts at runtime:
+# - Checks class distribution → applies SMOTE if needed
+# - Checks feature count → applies PCA if needed
+# - All decisions logged to MLflow automatically
+```
+
+> **Note on PCA**: The PCA transformer is returned as an artifact but is not currently loaded in the batch inference pipeline. If you enable PCA during training, you'll need to either: (1) extend the batch inference pipeline to load and apply the PCA transformer, or (2) disable PCA for production models. This is a known limitation of the current template implementation.
+
 ## 📚 Documentation
 
+- **[Architecture & Organization Guide](docs/ARCHITECTURE.md)** - ⭐ Design decisions, multi-tenancy patterns, RBAC, team collaboration (start here!)
 - **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - For data scientists using the platform
 - **[Platform Guide](docs/PLATFORM_GUIDE.md)** - For MLOps engineers maintaining governance
-- **[Architecture](docs/ARCHITECTURE.md)** - Design decisions and patterns
-- **[Demo Script](docs/DEMO_SCRIPT.md)** - Step-by-step walkthrough
 
 ## 🔄 Typical Workflows
 
@@ -214,12 +246,55 @@ model:
 
 ## 🎓 Learning Path
 
+### For Pro Users (Multi-Team Setup)
 1. **Start here**: Run `python run.py --pipeline training` locally
-2. **Understand structure**: Read [Architecture](docs/ARCHITECTURE.md)
+2. **Understand architecture**: Read [Architecture & Organization Guide](docs/ARCHITECTURE.md) ⭐ (multi-tenancy, RBAC, team patterns)
 3. **Developer view**: Follow [Developer Guide](docs/DEVELOPER_GUIDE.md)
 4. **Platform view**: Study [Platform Guide](docs/PLATFORM_GUIDE.md)
-5. **Advanced**: Set up GitOps workflows
-6. **Expert**: Customize for your organization
+5. **Advanced**: Set up GitOps workflows and multi-project structure
+6. **Expert**: Implement RBAC and customize for your organization
+
+### For OSS Users (Single-Team Setup)
+1. **Start here**: Run `python run.py --pipeline training` locally
+2. **Understand architecture**: Read [Architecture & Organization Guide](docs/ARCHITECTURE.md) (see "Basic Setup" section)
+3. **Developer view**: Follow [Developer Guide](docs/DEVELOPER_GUIDE.md)
+4. **Platform view**: Study [Platform Guide](docs/PLATFORM_GUIDE.md)
+5. **Advanced**: Set up GitOps workflows with environment-based stacks
+
+## 📝 Migration Notes
+
+### Upgrading to ZenML 0.92.0+
+
+This template requires **ZenML 0.92.0 or higher**. If you're upgrading from an earlier version (0.70.x - 0.91.x):
+
+**Key Changes:**
+- **Minimum version**: ZenML `>=0.92.0` is now required
+- **Database migrations**: Run `zenml migrate` after upgrading to apply schema changes
+- **API updates**: Some ZenML APIs may have changed; check the [ZenML Changelog](https://github.com/zenml-io/zenml/releases)
+
+**Migration Steps:**
+
+```bash
+# 1. Backup your ZenML database (if using SQLite)
+cp ~/.config/zenml/local_stores/default_zen_store/zenml.db ~/.config/zenml/local_stores/default_zen_store/zenml.db.backup
+
+# 2. Upgrade ZenML
+pip install --upgrade "zenml[server]>=0.92.0"
+
+# 3. Run database migrations
+zenml migrate
+
+# 4. Verify installation
+zenml version
+```
+
+**Why this version?**
+- Improved artifact handling and metadata management
+- Enhanced Model Control Plane features
+- Better pipeline snapshot support
+- Security and performance improvements
+
+If you encounter issues during migration, consult the [ZenML Migration Guide](https://docs.zenml.io/how-to/upgrade-zenml) or reach out on the [ZenML Slack](https://zenml.io/slack-invite).
 
 ## 🤝 Contributing
 

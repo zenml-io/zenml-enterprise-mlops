@@ -1,0 +1,167 @@
+# Production Environment Configuration
+# Strict settings for production workloads with high availability and security
+
+environment: production
+
+# ZenML stack configuration
+stack:
+  name: production-stack
+  components:
+    orchestrator: vertex-production  # Or kubernetes-production, airflow-production
+    artifact_store: gcs-production  # Or s3-production, azure-production
+    experiment_tracker: mlflow-production
+    model_registry: mlflow-production
+    container_registry: gcr-production  # Or ecr-production, acr-production
+
+# Model configuration for production
+model:
+  hyperparameters:
+    n_estimators: 100  # Full model size
+    max_depth: 10
+    class_weight: balanced
+
+  validation:
+    min_accuracy: 0.80  # Stricter requirements
+    min_precision: 0.80
+    min_recall: 0.80
+    min_f1: 0.80
+
+# Pipeline execution settings
+pipeline:
+  enable_cache: true  # Use cache for efficiency
+  schedule: "0 2 * * 0"  # Weekly on Sunday at 2 AM UTC
+
+  resources:
+    cpu: 4
+    memory: 8Gi
+    gpu: 0
+
+  # High availability settings
+  retry_policy:
+    max_retries: 3
+    backoff_multiplier: 2
+    initial_delay_seconds: 60
+
+# Data settings
+data:
+  sample_size: null  # Always use full dataset
+  use_synthetic: false
+  validation_split: 0.2
+
+  # Data quality checks
+  quality_checks:
+    check_schema: true
+    check_missing_values: true
+    check_outliers: true
+    check_data_drift: true
+
+# Deployment settings
+deployment:
+  auto_deploy: false  # Manual approval required
+  approval_required: true
+
+  serving:
+    replicas: 3
+    autoscaling:
+      enabled: true
+      min_replicas: 3
+      max_replicas: 10
+      target_cpu_utilization: 70
+
+    # Load balancing and traffic management
+    traffic:
+      canary_percentage: 0  # Start with 0%, gradually increase
+      blue_green: false
+
+  # Batch inference
+  batch_inference:
+    schedule: "0 2 * * *"  # Daily at 2 AM UTC
+    timeout_minutes: 120
+    retry_on_failure: true
+
+# Monitoring and alerting (critical for production)
+monitoring:
+  verbose_logging: false
+  log_level: INFO
+  sample_rate: 0.1  # Log 10% of predictions for efficiency
+
+  # Production alerts
+  alerts:
+    enabled: true
+    channels:
+      - slack
+      - email
+      - pagerduty
+
+    rules:
+      - name: model_accuracy_degradation
+        threshold: 0.75
+        severity: critical
+        notification: immediate
+
+      - name: high_prediction_latency
+        threshold: 1000  # milliseconds
+        severity: warning
+        notification: batched
+
+      - name: error_rate_spike
+        threshold: 0.05  # 5% error rate
+        severity: critical
+        notification: immediate
+
+      - name: data_drift_detected
+        threshold: 0.3
+        severity: warning
+        notification: batched
+
+  # SLOs (Service Level Objectives)
+  slo:
+    prediction_latency_p99: 1000  # milliseconds
+    availability: 99.9  # 99.9% uptime
+    error_rate: 0.01  # <1% error rate
+
+# Security settings (strict for production)
+security:
+  require_approval: true
+  approval_count: 2  # Require 2 approvers
+
+  audit_logging: true
+  log_all_access: true
+
+  # Encryption
+  encryption:
+    at_rest: true
+    in_transit: true
+
+  # Compliance
+  compliance:
+    hipaa: true  # Healthcare compliance
+    gdpr: true  # EU data protection
+    audit_retention_days: 2555  # 7 years for healthcare
+
+# Disaster recovery and backup
+disaster_recovery:
+  backup_enabled: true
+  backup_frequency: daily
+  backup_retention_days: 90
+
+  # Failover settings
+  multi_region: false  # Set to true for multi-region deployment
+  failover_region: null
+
+# Retention policy (conservative for production)
+retention:
+  pipeline_runs: 100  # Keep last 100 runs
+  models: 20  # Keep last 20 model versions
+  artifacts: 90  # Days to keep artifacts
+
+  # Never delete production models
+  keep_production_models_indefinitely: true
+
+# Cost optimization
+cost_optimization:
+  spot_instances: false  # Use reserved instances in production
+  auto_shutdown_unused_resources: false
+  budget_alerts:
+    enabled: true
+    monthly_threshold_usd: 5000

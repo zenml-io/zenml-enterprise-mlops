@@ -16,12 +16,11 @@
 
 """Data loading step for patient readmission prediction."""
 
+from typing import Annotated
+
 import pandas as pd
 from sklearn.datasets import load_diabetes
 from sklearn.model_selection import train_test_split
-from typing import Tuple
-from typing_extensions import Annotated
-
 from zenml import step
 from zenml.logger import get_logger
 
@@ -32,7 +31,7 @@ logger = get_logger(__name__)
 def load_data(
     test_size: float = 0.2,
     random_state: int = 42,
-) -> Tuple[
+) -> tuple[
     Annotated[pd.DataFrame, "X_train"],
     Annotated[pd.DataFrame, "X_test"],
     Annotated[pd.Series, "y_train"],

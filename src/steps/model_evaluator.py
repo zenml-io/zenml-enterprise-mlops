@@ -16,44 +16,32 @@
 
 """Model evaluation step with comprehensive metrics."""
 
+from typing import Annotated
+
 import mlflow
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import (
     accuracy_score,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
     roc_auc_score,
 )
-from typing import Dict
-from typing_extensions import Annotated
-
-from zenml import get_step_context, log_metadata, step
-from zenml.client import Client
-from zenml.integrations.mlflow.experiment_trackers import (
-    MLFlowExperimentTracker,
-)
+from zenml import log_metadata, step
 from zenml.logger import get_logger
+
+from src.utils import get_experiment_tracker_name
 
 logger = get_logger(__name__)
 
-# Get experiment tracker
-experiment_tracker = Client().active_stack.experiment_tracker
-EXPERIMENT_TRACKER_NAME = (
-    experiment_tracker.name
-    if experiment_tracker
-    and isinstance(experiment_tracker, MLFlowExperimentTracker)
-    else None
-)
 
-
-@step(experiment_tracker=EXPERIMENT_TRACKER_NAME)
+@step
 def evaluate_model(
     model: ClassifierMixin,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-) -> Annotated[Dict[str, float], "metrics"]:
+) -> Annotated[dict[str, float], "metrics"]:
     """Evaluate model performance on test set.
 
     This step computes comprehensive classification metrics and logs them
@@ -68,6 +56,9 @@ def evaluate_model(
         Dictionary of evaluation metrics
     """
     logger.info("Evaluating model performance")
+
+    # Get experiment tracker name (evaluated at step runtime, not import time)
+    experiment_tracker_name = get_experiment_tracker_name()
 
     # Make predictions
     y_pred = model.predict(X_test)
@@ -87,10 +78,11 @@ def evaluate_model(
     for metric_name, metric_value in metrics.items():
         logger.info(f"  {metric_name}: {metric_value:.4f}")
 
-    # Log to MLflow
-    if EXPERIMENT_TRACKER_NAME:
+    # Log to MLflow if tracker is available
+    if experiment_tracker_name:
         for metric_name, metric_value in metrics.items():
             mlflow.log_metric(metric_name, metric_value)
+        logger.info(f"Metrics logged to MLflow tracker: {experiment_tracker_name}")
 
     # Log to ZenML Model Control Plane
     log_metadata(

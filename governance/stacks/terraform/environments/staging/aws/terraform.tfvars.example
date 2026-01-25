@@ -1,0 +1,28 @@
+# Example Terraform Variables for AWS Staging
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars - it's in .gitignore
+
+# AWS region
+region = "us-east-1"
+
+# ZenML stack name (will be registered with your ZenML server)
+stack_name = "aws-staging"
+
+# Deployment name (used in AWS resource naming)
+deployment_name = "zenml-staging"
+
+# Orchestrator type: "sagemaker", "skypilot", or "local"
+# Note: SageMaker requires additional AWS permissions
+orchestrator = "local"
+
+# Optional: Additional tags
+tags = {
+  Team        = "ml-platform"
+  CostCenter  = "engineering"
+  Owner       = "mlops-team"
+  Environment = "staging"
+}
+
+# IMPORTANT: Before running terraform apply, set these environment variables:
+# export ZENML_SERVER_URL="https://your-zenml-server.com"
+# export ZENML_API_KEY="<your-service-account-api-key>"

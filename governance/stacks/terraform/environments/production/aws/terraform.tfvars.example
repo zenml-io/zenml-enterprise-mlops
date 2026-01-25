@@ -1,0 +1,58 @@
+# Example Terraform Variables for AWS Production
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars - it's in .gitignore
+
+# AWS region (consider multi-region for HA)
+region = "us-east-1"
+
+# ZenML stack name (will be registered with your ZenML server)
+stack_name = "aws-production"
+
+# Deployment name (used in AWS resource naming)
+deployment_name = "zenml-production"
+
+# Orchestrator type: "sagemaker" or "skypilot"
+# Recommendation: Use "sagemaker" for production (managed, scalable)
+# Note: "local" is not recommended for production environments
+orchestrator = "sagemaker"
+
+# Optional: Additional tags (required for compliance and cost tracking)
+tags = {
+  Team        = "ml-platform"
+  CostCenter  = "engineering"
+  Owner       = "mlops-team"
+  Environment = "production"
+  Criticality = "high"
+  Compliance  = "required"
+  Backup      = "enabled"
+}
+
+# PRODUCTION DEPLOYMENT CHECKLIST:
+# ================================
+#
+# Before running terraform apply:
+#
+# 1. Configure remote state backend (uncomment in main.tf)
+# 2. Set environment variables:
+#    export ZENML_SERVER_URL="https://your-zenml-server.com"
+#    export ZENML_API_KEY="<your-service-account-api-key>"
+#    export AWS_PROFILE=production  # Or configure AWS credentials
+#
+# 3. Verify AWS credentials and permissions
+# 4. Enable required AWS services:
+#    - SageMaker (if using sagemaker orchestrator)
+#    - S3
+#    - ECR
+#    - IAM
+#
+# 5. Review IAM roles and policies
+# 6. Set up monitoring and alerting (CloudWatch)
+# 7. Document deployment in change management system
+# 8. Configure S3 versioning and lifecycle policies
+# 9. Enable CloudTrail for audit logging
+#
+# Post-deployment:
+# - Test stack connectivity: zenml stack describe aws-production
+# - Run validation pipeline before promoting models
+# - Set up automated monitoring dashboards
+# - Configure backup procedures for critical data
