@@ -25,60 +25,65 @@ This pipeline demonstrates how to:
 from typing import Annotated
 
 import pandas as pd
-from sklearn.base import ClassifierMixin
-from sklearn.preprocessing import StandardScaler
-from zenml import Model, pipeline, step
+from zenml import Model, get_step_context, pipeline, step
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
 
 from governance.hooks import pipeline_failure_hook, pipeline_success_hook
-from src.steps import load_data, predict_batch
+from src.steps import load_data
 
 logger = get_logger(__name__)
 
 
-@step
-def load_production_artifacts() -> tuple[
-    Annotated[ClassifierMixin, "model"],
-    Annotated[StandardScaler, "scaler"],
-]:
-    """Load model and scaler from the Model Control Plane.
+@step(enable_cache=False)  # Always run fresh to use current production model
+def scale_and_predict(
+    X: pd.DataFrame,
+) -> Annotated[pd.DataFrame, "predictions"]:
+    """Load production model and generate predictions.
+
+    Loads the model and scaler directly from Model Control Plane,
+    then generates predictions with probabilities.
+
+    Args:
+        X: Raw features to predict on
 
     Returns:
-        Tuple of (model, scaler) from the production model version
+        DataFrame with predictions and probabilities
     """
-    from zenml import get_step_context
-
     context = get_step_context()
-    model = context.model.load_artifact("model")
+
+    # Load artifacts directly from Model Control Plane
+    model = context.model.load_artifact("sklearn_classifier")
     scaler = context.model.load_artifact("scaler")
 
     logger.info(f"Loaded production model version: {context.model.number}")
 
-    return model, scaler
-
-
-@step
-def apply_scaler(
-    X: pd.DataFrame,
-    scaler: StandardScaler,
-) -> Annotated[pd.DataFrame, "X_scaled"]:
-    """Apply saved scaler to features.
-
-    Args:
-        X: Raw features
-        scaler: Fitted StandardScaler from training
-
-    Returns:
-        Scaled features
-    """
+    # Scale features
     X_scaled = pd.DataFrame(
         scaler.transform(X),
         columns=X.columns,
         index=X.index,
     )
-    logger.info(f"Applied scaler to {len(X)} samples")
-    return X_scaled
+
+    # Generate predictions
+    predictions = model.predict(X_scaled)
+    probabilities = model.predict_proba(X_scaled)[:, 1]
+
+    results = pd.DataFrame(
+        {
+            "prediction": predictions,
+            "probability": probabilities,
+        },
+        index=X.index,
+    )
+
+    high_risk_count = (predictions == 1).sum()
+    logger.info(
+        f"Predictions complete: {high_risk_count} high-risk identified "
+        f"({high_risk_count / len(predictions) * 100:.1f}%)"
+    )
+
+    return results
 
 
 @pipeline(
@@ -93,34 +98,17 @@ def batch_inference_pipeline():
     """Run batch inference using the production model.
 
     This pipeline:
-    1. Loads new patient data
-    2. Loads the current production model and scaler (by stage)
-    3. Engineers features using the saved scaler
-    4. Generates predictions
-    5. Logs predictions for monitoring
+    1. Loads new data
+    2. Loads the production model and scaler (by stage)
+    3. Scales features and generates predictions
 
     The model is referenced by stage ("production") so this pipeline
     always uses the current production model without code changes.
     """
-    # Load new data to predict on
+    # Load new data to predict on (using test set as demo data)
     _X_train, X_test, _, _ = load_data()
 
-    # Use test set as new data for demo purposes
-    # In production, this would load from your data warehouse
-    logger.info("Loading new data for predictions")
-
-    # Load production model and scaler from Model Control Plane
-    model, scaler = load_production_artifacts()
-
-    # Apply scaler transformation
-    X_scaled = apply_scaler(X_test, scaler)
-
-    # Generate predictions
-    predictions = predict_batch(model, X_scaled)
-
-    # In production, predictions would be:
-    # 1. Saved to database
-    # 2. Sent to monitoring system (Arize)
-    # 3. Delivered to downstream applications
+    # Scale and predict in a single step
+    predictions = scale_and_predict(X_test)
 
     return predictions
