@@ -149,7 +149,7 @@ zenml-init:
 	$(RUN) zenml init
 
 zenml-up:
-	$(RUN) zenml up
+	$(RUN) zenml login
 
 zenml-down:
 	$(RUN) zenml down

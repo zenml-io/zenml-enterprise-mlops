@@ -96,7 +96,7 @@ python demo/chapters/chapter_6_batch_inference.py
 
 ## Tips for Demos
 
-1. **Start with dashboard open**: `zenml up` in another terminal
+1. **Start with dashboard open**: `zenml login` in another terminal
 2. **Use `--chapter` for focused demos**: Skip to relevant chapters
 3. **Show code alongside**: Open `src/pipelines/training.py` to show clean code
 4. **Highlight governance**: Show `governance/hooks/` to explain automatic enforcement

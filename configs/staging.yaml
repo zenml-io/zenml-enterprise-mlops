@@ -2,7 +2,7 @@
 # Run with: zenml pipeline run src.pipelines.training.training_pipeline --config configs/staging.yaml
 
 # Run name uses placeholders that ZenML will replace at runtime
-run_name: "{run_name_prefix}_staging_{date}_{time}"
+run_name: "training_staging_{date}_{time}"
 
 # Cache disabled in staging for fresh runs
 enable_cache: false

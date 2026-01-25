@@ -178,7 +178,7 @@ def main(chapter: int, list_chapters: bool, auto: bool):
     print("  ✅ DEMO COMPLETE")
     print("=" * 75)
     print("\n🔗 Next steps:")
-    print("   - View dashboard: zenml up")
+    print("   - View dashboard: zenml login")
     print("   - Run champion/challenger: python run.py --pipeline champion_challenger")
     print("   - See docs: docs/ARCHITECTURE.md")
     print()

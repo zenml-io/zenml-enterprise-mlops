@@ -102,28 +102,67 @@ Key points to highlight:
     print_section("🔗 Lineage & Artifacts")
 
     try:
-        # Get artifacts
         print(f"Artifacts for v{latest.number}:\n")
 
-        artifacts = latest.data_artifacts
-        if artifacts:
-            for name, artifact_list in artifacts.items():
-                print(f"   📦 {name}")
-                for art in artifact_list[:1]:  # Just show first
-                    print(f"      URI: {art.uri[:60]}...")
-        else:
-            print("   No artifacts found.")
+        # Use the new API to get artifact names
+        artifact_names = ["model", "scaler", "X_train", "X_test", "y_train", "y_test"]
+        found_any = False
 
-        # Pipeline runs
-        runs = latest.pipeline_runs
-        if runs:
-            run = runs[0]
-            print(f"\n   🔄 Training Pipeline: {run.name}")
-            print(f"      Status: {run.status}")
-            print(f"      Started: {str(run.start_time)[:19]}")
+        for name in artifact_names:
+            try:
+                artifact = latest.get_artifact(name)
+                if artifact:
+                    found_any = True
+                    print(f"   📦 {name}")
+                    print(f"      Type: {artifact.type}")
+                    uri = str(artifact.uri) if artifact.uri else "N/A"
+                    if len(uri) > 50:
+                        uri = uri[:50] + "..."
+                    print(f"      URI: {uri}")
+            except KeyError:
+                pass  # Artifact not found, skip
+            except Exception:
+                pass  # Other error, skip
+
+        if not found_any:
+            print("   Artifacts linked to model (check dashboard for full list)")
+
+        # Get pipeline run info
+        print("\n   🔄 Pipeline Run Info:")
+        print(f"      Model ID: {latest.id}")
+        print(f"      Created: {str(latest.created)[:19]}")
+        if latest.updated:
+            print(f"      Updated: {str(latest.updated)[:19]}")
 
     except Exception as e:
         print(f"   Could not get lineage info: {e}")
+
+    print_section("💡 Loading Artifacts Programmatically")
+    print(
+        """
+To load artifacts from a model version in your code:
+
+    from zenml.client import Client
+    from zenml.enums import ModelStages
+
+    # Get the production model
+    client = Client()
+    model = client.get_model_version(
+        "patient_readmission_predictor",
+        ModelStages.PRODUCTION
+    )
+
+    # Load specific artifacts
+    classifier = model.get_artifact("model")
+    scaler = model.get_artifact("scaler")
+
+    # Use them for inference
+    X_scaled = scaler.transform(new_data)
+    predictions = classifier.predict(X_scaled)
+
+This is how batch_inference_pipeline loads the production model!
+"""
+    )
 
     print_section("🏷️ Model Stages Explained")
     print(

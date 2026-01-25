@@ -2,15 +2,6 @@
 
 This directory contains environment-specific configurations for ZenML pipelines.
 
-## Configuration Hierarchy
-
-```
-project_config.yaml          # Central source of truth (model name, tags, etc.)
-├── configs/local.yaml       # Local development overrides
-├── configs/staging.yaml     # Staging environment overrides
-└── configs/production.yaml  # Production environment overrides
-```
-
 ## Usage
 
 ### Via CLI
@@ -44,7 +35,7 @@ python run.py --environment local
 python run.py --environment staging
 ```
 
-### Via build.py (CI/CD Snapshots)
+### Via build_snapshot.py (CI/CD Snapshots)
 
 ```bash
 # Create staging snapshot (auto-run)
@@ -67,8 +58,8 @@ python scripts/build_snapshot.py --environment production --stack my-stack
 ZenML configs follow this structure:
 
 ```yaml
-# Run naming (uses ZenML substitution placeholders)
-run_name: "{run_name_prefix}_staging_{date}_{time}"
+# Run naming (uses ZenML substitution placeholders: {date}, {time})
+run_name: "training_staging_{date}_{time}"
 
 # Cache behavior
 enable_cache: false
@@ -78,7 +69,7 @@ parameters:
   n_estimators: 100
   max_depth: 10
 
-# Tags (merged with project_config.yaml tags)
+# Tags for this environment
 tags:
   - "staging"
 
@@ -88,26 +79,6 @@ settings:
     parent_image: python:3.11-slim
 ```
 
-## Central Configuration
-
-All project settings are defined in `project_config.yaml` at the repo root:
-
-```yaml
-model:
-  name: "patient_readmission_predictor"
-  tags: ["healthcare", "classification"]
-
-pipeline:
-  run_name_prefix: "readmission_training"
-  tags: ["training"]
-
-snapshot:
-  prefix: "readmission_model"
-```
-
-Environment configs override/extend these base settings.
-
 ## See Also
 
-- [project_config.yaml](../project_config.yaml) - Central configuration
 - [ZenML Configuration Docs](https://docs.zenml.io/how-to/pipeline-development/use-configuration-files)

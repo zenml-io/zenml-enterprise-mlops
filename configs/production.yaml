@@ -2,7 +2,7 @@
 # Run with: zenml pipeline run src.pipelines.training.training_pipeline --config configs/production.yaml
 
 # Run name uses placeholders that ZenML will replace at runtime
-run_name: "{run_name_prefix}_production_{date}_{time}"
+run_name: "training_production_{date}_{time}"
 
 # Cache disabled in production for reproducibility
 enable_cache: false

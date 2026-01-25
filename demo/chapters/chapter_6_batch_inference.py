@@ -164,7 +164,7 @@ Key Enterprise Benefits:
   ✓ GitOps workflows (git = source of truth)
   ✓ Safe rollouts (champion/challenger pattern)
 
-Dashboard: zenml up
+Dashboard: zenml login
 Docs: docs/ARCHITECTURE.md
 """
     )

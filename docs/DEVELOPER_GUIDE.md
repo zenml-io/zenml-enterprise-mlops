@@ -86,7 +86,7 @@ Access the MLflow UI at: http://localhost:5000
 To visualize pipeline runs and models:
 
 ```bash
-zenml up
+zenml login
 ```
 
 Access the dashboard at: http://localhost:8237
@@ -237,7 +237,7 @@ python run.py --pipeline dynamic_training
 
 1. **ZenML Dashboard**:
    ```bash
-   zenml up
+   zenml login
    # Navigate to http://localhost:8237
    ```
 
@@ -350,7 +350,7 @@ Test full pipeline locally before pushing:
 python run.py --pipeline training --test-size 0.3
 
 # Check ZenML dashboard for results
-zenml up
+zenml login
 ```
 
 ## Git Workflow

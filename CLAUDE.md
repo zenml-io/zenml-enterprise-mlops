@@ -482,7 +482,7 @@ zenml pipeline deploy src.pipelines.realtime_inference.inference_service \
     --name readmission-api
 
 # Check results in dashboard
-zenml up
+zenml login
 ```
 
 ## Key Metrics for Success

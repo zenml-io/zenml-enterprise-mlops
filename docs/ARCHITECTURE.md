@@ -157,7 +157,7 @@ pip install "zenml[server]>=0.92.0"
 zenml init
 
 # Start local server (OSS) or connect to Pro
-zenml up  # OSS
+zenml login  # OSS
 zenml connect --url https://your-org.zenml.io  # Pro
 
 # Configure environment stacks

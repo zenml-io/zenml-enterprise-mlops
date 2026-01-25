@@ -56,7 +56,7 @@ pip install -r requirements.txt
 zenml init
 
 # Start ZenML UI (optional but recommended)
-zenml up
+zenml login
 
 # Run the training pipeline
 python run.py --pipeline training

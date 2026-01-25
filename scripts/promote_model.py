@@ -39,6 +39,41 @@ from zenml.logger import get_logger
 logger = get_logger(__name__)
 
 
+def find_latest_with_metrics(client: Client, model_name: str) -> "ModelVersionResponse":
+    """Find the latest model version that has metrics logged.
+
+    When pipeline runs are fully cached, ZenML still creates a new model version
+    but metrics aren't logged. This function finds the most recent version that
+    actually has metrics for promotion validation.
+
+    Args:
+        client: ZenML client
+        model_name: Name of the model
+
+    Returns:
+        The latest model version with metrics
+
+    Raises:
+        ValueError: If no version with metrics is found
+    """
+    required_metrics = ["accuracy", "precision", "recall"]
+    versions = client.list_model_versions(model=model_name, size=20)
+
+    # Sort by version number descending to get latest first
+    sorted_versions = sorted(versions, key=lambda v: v.number, reverse=True)
+
+    for version in sorted_versions:
+        metrics = version.run_metadata
+        if metrics and all(m in metrics for m in required_metrics):
+            logger.info(f"Found version {version.number} with metrics")
+            return version
+
+    raise ValueError(
+        f"No model version found with required metrics: {required_metrics}. "
+        f"Run the training pipeline first."
+    )
+
+
 def validate_promotion(model_version, to_stage: str) -> bool:
     """Validate that model meets requirements for promotion.
 
@@ -179,8 +214,8 @@ def promote_model(
             }
             model_version = client.get_model_version(model, stage_map[from_stage])
         else:
-            logger.info("Promoting latest version")
-            model_version = client.get_model_version(model, ModelStages.LATEST)
+            logger.info("Finding latest version with metrics...")
+            model_version = find_latest_with_metrics(client, model)
 
         logger.info(f"Model version: {model_version.number}")
         logger.info(f"Current stage: {model_version.stage}")

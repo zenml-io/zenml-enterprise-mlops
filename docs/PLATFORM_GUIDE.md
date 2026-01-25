@@ -358,7 +358,7 @@ zenml model version describe patient_readmission_predictor \
 python run.py --pipeline batch_inference
 
 # Monitor predictions in dashboard
-zenml up
+zenml login
 ```
 
 ### Rollback Procedures

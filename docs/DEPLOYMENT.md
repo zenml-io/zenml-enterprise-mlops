@@ -88,7 +88,7 @@ git checkout -b feature/improve-model
 python run.py --pipeline training
 
 # 3. Verify results
-zenml up  # Check dashboard
+zenml login  # Check dashboard
 
 # 4. Commit and push
 git add src/

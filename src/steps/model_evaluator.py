@@ -36,7 +36,7 @@ from src.utils import get_experiment_tracker_name
 logger = get_logger(__name__)
 
 
-@step
+@step(enable_cache=False)  # Always run to ensure metrics are logged
 def evaluate_model(
     model: ClassifierMixin,
     X_test: pd.DataFrame,
