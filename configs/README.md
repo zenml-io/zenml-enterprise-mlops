@@ -1,96 +1,79 @@
-# Configuration Files
+# ZenML Pipeline Configurations
 
-This directory contains **reference configuration templates** for different environments.
+This directory contains **real ZenML configuration files** that can be passed directly to pipelines.
 
-## Important Note
+## Usage
 
-⚠️ **These configuration files are NOT automatically loaded by the pipelines.** They serve as:
-
-1. **Documentation** - Showing recommended settings for each environment
-2. **Reference templates** - Demonstrating configuration patterns
-3. **Manual guidance** - Settings to consider when deploying
-
-## Using These Configurations
-
-### Option 1: Manual Parameter Passing
-
-Pass parameters directly when running pipelines:
+### Via CLI
 
 ```bash
-python run.py --pipeline training \
-  --n-estimators 50 \
-  --max-depth 5 \
-  --min-accuracy 0.70
+# Run training pipeline with staging config
+zenml pipeline run src.pipelines.training.training_pipeline \
+    --config configs/training_staging.yaml
+
+# Run training pipeline with production config
+zenml pipeline run src.pipelines.training.training_pipeline \
+    --config configs/training_production.yaml
 ```
 
-### Option 2: Load in Code
-
-Modify your pipeline invocation to load from YAML:
-
-```python
-import yaml
-from pathlib import Path
-
-# Load config
-config_path = Path("configs/staging.yaml")
-with open(config_path) as f:
-    config = yaml.safe_load(f)
-
-# Run pipeline with config values
-training_pipeline(
-    n_estimators=config["model"]["hyperparameters"]["n_estimators"],
-    max_depth=config["model"]["hyperparameters"]["max_depth"],
-    min_accuracy=config["model"]["validation"]["min_accuracy"],
-)
-```
-
-### Option 3: ZenML with_options (Pro Feature)
-
-Use ZenML's `with_options` to apply configuration:
+### Via Python
 
 ```python
 from src.pipelines.training import training_pipeline
 
-# Create snapshot with config
-snapshot = training_pipeline.with_options(
-    config_path="configs/staging.yaml",
-).create_snapshot(name="STG_model_abc123")
+# Run with config file
+training_pipeline.with_options(
+    config_path="configs/training_staging.yaml"
+)()
 ```
-
-> **Note**: The `config_path` feature requires specific ZenML configuration structure and may need adaptation based on your ZenML version.
 
 ## Configuration Files
 
-- **`staging.yaml`** - Settings for staging environment (faster iteration, lower thresholds)
-- **`production.yaml`** - Settings for production environment (stricter validation, compliance)
+| File | Purpose |
+|------|---------|
+| `training_staging.yaml` | Staging: faster iteration, lower thresholds (50 trees, 70% accuracy) |
+| `training_production.yaml` | Production: full model, strict thresholds (100 trees, 80% accuracy) |
+
+## Configuration Structure
+
+ZenML configs follow this structure:
+
+```yaml
+# Pipeline parameters (passed to pipeline function)
+parameters:
+  n_estimators: 100
+  max_depth: 10
+
+# Pipeline-level settings (docker, resources, etc.)
+settings:
+  docker:
+    parent_image: python:3.11-slim
+  resources:
+    cpu_count: 4
+
+# Step-specific overrides
+steps:
+  train_model:
+    parameters:
+      learning_rate: 0.01
+    settings:
+      resources:
+        cpu_count: 8
+```
 
 ## Environment-Specific Settings
 
 ### Staging
 - Smaller models for faster iteration (`n_estimators: 50`)
 - Lower validation thresholds (`min_accuracy: 0.70`)
-- Manual triggers only
-- Single replica serving
+- Standard resources (2 CPU, 4GB RAM)
 
 ### Production
-- Full-size models (`n_estimators: 100+`)
-- Strict validation thresholds (`min_accuracy: 0.85`)
-- Approval gates required
-- Multi-replica serving with autoscaling
-- Enhanced monitoring and compliance logging
+- Full model capacity (`n_estimators: 100`)
+- Strict validation (`min_accuracy: 0.80`)
+- Higher resources (4 CPU, 8GB RAM)
 
-## Extending Configuration
+## See Also
 
-To add custom configuration:
-
-1. Add new fields to the YAML files following the existing structure
-2. Update your pipeline code to read these values
-3. Document the new settings in this README
-4. Consider adding validation for critical configuration values
-
-## Best Practices
-
-- Keep sensitive values (API keys, passwords) in environment variables or secrets managers, NOT in these files
-- Use version control to track configuration changes
-- Test configuration changes in staging before applying to production
-- Document any non-obvious configuration choices
+- [ZenML Configuration Docs](https://docs.zenml.io/how-to/pipeline-development/use-configuration-files)
+- [Docker Settings](../governance/docker/docker_settings.py) - Platform-managed Docker configurations

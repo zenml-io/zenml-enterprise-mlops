@@ -436,6 +436,29 @@ These are meant to be extended/customized:
 - ✅ Add more validation logic
 - ✅ Add monitoring integrations
 
+## Running the Demo
+
+The `demo/` folder contains an interactive demo with chapters:
+
+```bash
+# Run full interactive demo
+python demo/run_demo.py
+
+# Run specific chapter
+python demo/run_demo.py --chapter 2
+
+# List all chapters
+python demo/run_demo.py --list
+```
+
+**Demo Chapters:**
+1. Train a Model (clean code, automatic governance)
+2. Explore Model Control Plane (lineage, audit trail)
+3. Promote to Staging (validation gates)
+4. Champion vs Challenger (safe rollouts)
+5. Promote to Production (higher bar, GitOps)
+6. Batch Inference (scheduled, load by stage)
+
 ## Testing Locally
 
 ```bash

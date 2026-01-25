@@ -200,16 +200,16 @@ def promote_model(
                 if to_stage == "staging"
                 else ModelStages.PRODUCTION,
             )
-            if current_model_in_stage.version != model_version.number:
+            if current_model_in_stage.number != model_version.number:
                 if not force:
                     logger.error(
-                        f"Model version {current_model_in_stage.version} is already in {to_stage}. "
+                        f"Model version {current_model_in_stage.number} is already in {to_stage}. "
                         f"Use --force to demote it."
                     )
                     raise ValueError(f"Another model is already in {to_stage} stage")
                 else:
                     logger.warning(
-                        f"Demoting version {current_model_in_stage.version} from {to_stage}"
+                        f"Demoting version {current_model_in_stage.number} from {to_stage}"
                     )
         except KeyError:
             # No model in target stage, proceed

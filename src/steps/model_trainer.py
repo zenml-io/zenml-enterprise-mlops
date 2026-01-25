@@ -22,7 +22,7 @@ import mlflow
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
-from zenml import ArtifactConfig, step
+from zenml import ArtifactConfig, ArtifactType, step
 from zenml.logger import get_logger
 
 from src.utils import get_experiment_tracker_name
@@ -39,7 +39,7 @@ def train_model(
     random_state: int = 42,
 ) -> Annotated[
     ClassifierMixin,
-    ArtifactConfig(name="model", is_model_artifact=True),
+    ArtifactConfig(name="model", artifact_type=ArtifactType.MODEL),
 ]:
     """Train a Random Forest classifier for readmission prediction.
 
