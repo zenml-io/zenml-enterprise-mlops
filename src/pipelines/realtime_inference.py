@@ -95,9 +95,9 @@ def load_model_artifacts():
     }
 
 
-def cleanup_model_artifacts(artifacts: dict):
+def cleanup_model_artifacts(artifacts: dict | None = None):
     """Cleanup when deployment stops."""
-    # No cleanup needed for sklearn models
+    del artifacts  # No cleanup needed for sklearn models
 
 
 @step

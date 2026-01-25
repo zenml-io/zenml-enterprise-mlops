@@ -49,6 +49,8 @@ dev = [
     "pre-commit>=3.6.0",
     "ruff>=0.9.0",
     "mypy>=1.14.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
     "jupyter>=1.0.0",
     "notebook>=7.0.0",
 ]
@@ -163,6 +165,7 @@ ignore = [
 "*.ipynb" = ["T201", "E402", "F401", "B018", "RUF001"]  # Jupyter specific
 "src/**/*.py" = ["G004", "PLC0415"]  # Allow f-string logging, conditional imports
 "governance/**/*.py" = ["G004", "PLR0912", "PLR0915", "PLC0415", "UP006", "UP035", "PTH118"]  # Allow f-string logging, complex functions, typing compat
+"tests/**/*.py" = ["S101", "PLR2004", "PLR0124", "PLC0415", "D"]  # Allow asserts, magic values, self-compare, local imports
 
 [tool.ruff.lint.isort]
 known-first-party = ["src", "governance"]
@@ -196,3 +199,25 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 check_untyped_defs = true
 
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = ["-v", "--tb=short"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src", "governance"]
+omit = ["*/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

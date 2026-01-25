@@ -1,4 +1,4 @@
-.PHONY: help install install-dev setup clean lint format type-check pre-commit run-training run-batch-inference
+.PHONY: help install install-dev setup clean test lint format type-check pre-commit run-training run-batch-inference
 
 # Use uv if available, fallback to pip
 UV := $(shell command -v uv 2> /dev/null)
@@ -31,6 +31,11 @@ help:
 	@echo "  make type-check       Run mypy type checking"
 	@echo "  make check            Run all checks (format, lint, type-check)"
 	@echo "  make pre-commit       Install pre-commit hooks"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test             Run all tests"
+	@echo "  make test-fast        Run tests without coverage"
+	@echo "  make test-cov         Run tests with coverage report"
 	@echo ""
 	@echo "Pipeline Operations:"
 	@echo "  make run-training     Run training pipeline locally"
@@ -109,6 +114,17 @@ endif
 # Update pre-commit hooks to latest versions
 pre-commit-update:
 	pre-commit autoupdate
+
+# Testing
+test:
+	$(RUN) pytest
+
+test-fast:
+	$(RUN) pytest --no-cov -q
+
+test-cov:
+	$(RUN) pytest --cov=src --cov=governance --cov-report=html --cov-report=term
+	@echo "Coverage report: htmlcov/index.html"
 
 # Pipeline Operations
 run-training:
