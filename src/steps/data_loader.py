@@ -19,7 +19,7 @@
 from typing import Annotated
 
 import pandas as pd
-from sklearn.datasets import load_diabetes
+from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from zenml import step
 from zenml.logger import get_logger
@@ -37,10 +37,10 @@ def load_data(
     Annotated[pd.Series, "y_train"],
     Annotated[pd.Series, "y_test"],
 ]:
-    """Load and split the diabetes dataset for readmission prediction.
+    """Load and split the breast cancer dataset for risk prediction.
 
-    This step uses the diabetes dataset as a proxy for patient readmission
-    risk prediction. In production, this would load from your data warehouse.
+    This step uses the breast cancer dataset as a proxy for patient risk
+    prediction. In production, this would load from your data warehouse.
 
     Args:
         test_size: Fraction of data to use for testing
@@ -49,16 +49,13 @@ def load_data(
     Returns:
         Tuple of (X_train, X_test, y_train, y_test)
     """
-    logger.info("Loading diabetes dataset as proxy for patient data")
+    logger.info("Loading breast cancer dataset as proxy for patient risk data")
 
-    # Load dataset
-    data = load_diabetes(as_frame=True)
-    X = data.data  # Use .data to get only features (excludes target)
-
-    # Convert regression target to binary classification (high/low risk)
-    # Threshold at median for balanced classes
-    y = (data.target > data.target.median()).astype(int)
-    y = pd.Series(y, name="readmission_risk")
+    # Load dataset - this is a proper binary classification dataset
+    data = load_breast_cancer(as_frame=True)
+    X = data.data
+    y = data.target
+    y = pd.Series(y, name="risk_prediction")
 
     logger.info(f"Dataset loaded: {X.shape[0]} patients, {X.shape[1]} features")
     logger.info(f"Target distribution: {y.value_counts().to_dict()}")

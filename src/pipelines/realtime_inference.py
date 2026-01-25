@@ -40,22 +40,43 @@ from zenml.enums import ModelStages
 
 
 class PatientData(BaseModel):
-    """Patient data for readmission prediction.
+    """Patient data for risk prediction.
 
     This Pydantic model defines the API contract for the deployed service.
-    Features match the diabetes dataset used for training.
+    Uses key features from the breast cancer dataset for the demo.
     """
 
-    age: float = 0.0  # Age (normalized)
-    sex: float = 0.0  # Sex (normalized)
-    bmi: float = 0.0  # Body mass index (normalized)
-    bp: float = 0.0  # Average blood pressure (normalized)
-    s1: float = 0.0  # tc, total serum cholesterol (normalized)
-    s2: float = 0.0  # ldl, low-density lipoproteins (normalized)
-    s3: float = 0.0  # hdl, high-density lipoproteins (normalized)
-    s4: float = 0.0  # tch, total cholesterol / HDL (normalized)
-    s5: float = 0.0  # ltg, log of serum triglycerides (normalized)
-    s6: float = 0.0  # glu, blood sugar level (normalized)
+    mean_radius: float = 14.0
+    mean_texture: float = 19.0
+    mean_perimeter: float = 92.0
+    mean_area: float = 655.0
+    mean_smoothness: float = 0.096
+    mean_compactness: float = 0.104
+    mean_concavity: float = 0.088
+    mean_concave_points: float = 0.049
+    mean_symmetry: float = 0.181
+    mean_fractal_dimension: float = 0.063
+    # Remaining 20 features with defaults (for full model compatibility)
+    radius_error: float = 0.4
+    texture_error: float = 1.2
+    perimeter_error: float = 2.9
+    area_error: float = 40.0
+    smoothness_error: float = 0.007
+    compactness_error: float = 0.025
+    concavity_error: float = 0.032
+    concave_points_error: float = 0.012
+    symmetry_error: float = 0.021
+    fractal_dimension_error: float = 0.004
+    worst_radius: float = 16.0
+    worst_texture: float = 25.0
+    worst_perimeter: float = 107.0
+    worst_area: float = 881.0
+    worst_smoothness: float = 0.132
+    worst_compactness: float = 0.254
+    worst_concavity: float = 0.272
+    worst_concave_points: float = 0.115
+    worst_symmetry: float = 0.290
+    worst_fractal_dimension: float = 0.084
 
 
 class PredictionResult(BaseModel):
@@ -109,14 +130,48 @@ def preprocess_request(
 ) -> Annotated[dict, "processed_features"]:
     """Preprocess incoming patient data.
 
-    For this demo, we pass the raw features directly since the training
-    data uses different features (diabetes dataset). In production,
-    you would apply the same scaler used during training.
+    Extracts features in the correct order to match training data.
     """
-    # Return raw features as a list for prediction
+    # Feature order must match sklearn breast_cancer dataset
+    feature_order = [
+        "mean_radius",
+        "mean_texture",
+        "mean_perimeter",
+        "mean_area",
+        "mean_smoothness",
+        "mean_compactness",
+        "mean_concavity",
+        "mean_concave_points",
+        "mean_symmetry",
+        "mean_fractal_dimension",
+        "radius_error",
+        "texture_error",
+        "perimeter_error",
+        "area_error",
+        "smoothness_error",
+        "compactness_error",
+        "concavity_error",
+        "concave_points_error",
+        "symmetry_error",
+        "fractal_dimension_error",
+        "worst_radius",
+        "worst_texture",
+        "worst_perimeter",
+        "worst_area",
+        "worst_smoothness",
+        "worst_compactness",
+        "worst_concavity",
+        "worst_concave_points",
+        "worst_symmetry",
+        "worst_fractal_dimension",
+    ]
+
+    raw = patient_data.model_dump()
+    features = [raw[f] for f in feature_order]
+
     return {
-        "features": list(patient_data.model_dump().values()),
-        "raw": patient_data.model_dump(),
+        "features": features,
+        "raw": raw,
     }
 
 
@@ -151,9 +206,10 @@ def predict(
     probability = float(model.predict_proba(features)[0, 1])
 
     # Determine risk level
-    if probability < 0.3:
+    # Note: probability is P(benign), so low probability = high risk
+    if probability > 0.7:
         risk_level = "LOW"
-    elif probability < 0.6:
+    elif probability > 0.4:
         risk_level = "MEDIUM"
     else:
         risk_level = "HIGH"
@@ -165,19 +221,19 @@ def predict(
         "protective_factors": [],
     }
 
-    # Heuristic explanations based on diabetes risk factors
+    # Heuristic explanations based on breast cancer risk factors
     # In production, use SHAP/LIME for accurate explanations
-    if raw_data.get("bmi", 0) > 0.05:
-        explanation["top_risk_factors"].append("Elevated BMI")
-    if raw_data.get("bp", 0) > 0.05:
-        explanation["top_risk_factors"].append("High blood pressure")
-    if raw_data.get("s5", 0) > 0.05:  # log serum triglycerides
-        explanation["top_risk_factors"].append("Elevated triglycerides")
-    if raw_data.get("s6", 0) > 0.05:  # blood sugar
-        explanation["top_risk_factors"].append("Elevated blood sugar")
+    if raw_data.get("mean_radius", 0) > 15:
+        explanation["top_risk_factors"].append("Large mean radius")
+    if raw_data.get("mean_concavity", 0) > 0.1:
+        explanation["top_risk_factors"].append("High concavity")
+    if raw_data.get("worst_radius", 0) > 18:
+        explanation["top_risk_factors"].append("Large worst radius")
+    if raw_data.get("worst_concave_points", 0) > 0.15:
+        explanation["top_risk_factors"].append("High worst concave points")
 
-    if raw_data.get("s3", 0) > 0.05:  # HDL
-        explanation["protective_factors"].append("Good HDL cholesterol")
+    if raw_data.get("mean_smoothness", 0) < 0.09:
+        explanation["protective_factors"].append("Low smoothness")
 
     return PredictionResult(
         patient_id=str(uuid.uuid4())[:8],
