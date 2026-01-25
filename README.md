@@ -1,6 +1,6 @@
 # ZenML Enterprise MLOps Template
 
-Production-ready MLOps for regulated industries. Built for healthcare, applicable everywhere.
+Production-ready MLOps template for regulated industries. Demonstrates enterprise patterns with sklearn's breast cancer dataset.
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![ZenML](https://img.shields.io/badge/ZenML-0.92.0+-orange.svg)](https://zenml.io)
