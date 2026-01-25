@@ -98,7 +98,7 @@ def predict_with_model(
             "prediction": predictions,
             "probability": probabilities,
             "model_stage": model_stage,
-            "model_version": str(model_version.version),
+            "model_version": str(model_version.number),
         }
     )
 

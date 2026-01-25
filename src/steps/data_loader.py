@@ -53,7 +53,7 @@ def load_data(
 
     # Load dataset
     data = load_diabetes(as_frame=True)
-    X = data.frame
+    X = data.data  # Use .data to get only features (excludes target)
 
     # Convert regression target to binary classification (high/low risk)
     # Threshold at median for balanced classes

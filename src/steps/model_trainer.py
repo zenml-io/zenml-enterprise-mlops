@@ -40,7 +40,7 @@ def train_model(
     random_state: int = 42,
 ) -> Annotated[
     ClassifierMixin,
-    ArtifactConfig(name="model", artifact_type=ArtifactType.MODEL),
+    ArtifactConfig(name="sklearn_classifier", artifact_type=ArtifactType.MODEL),
 ]:
     """Train a Random Forest classifier for readmission prediction.
 

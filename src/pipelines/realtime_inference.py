@@ -43,16 +43,19 @@ class PatientData(BaseModel):
     """Patient data for readmission prediction.
 
     This Pydantic model defines the API contract for the deployed service.
+    Features match the diabetes dataset used for training.
     """
 
-    age: float = 65.0
-    num_procedures: int = 1
-    num_medications: int = 5
-    num_outpatient: int = 0
-    num_inpatient: int = 1
-    num_emergency: int = 0
-    num_diagnoses: int = 3
-    time_in_hospital: int = 3
+    age: float = 0.0  # Age (normalized)
+    sex: float = 0.0  # Sex (normalized)
+    bmi: float = 0.0  # Body mass index (normalized)
+    bp: float = 0.0  # Average blood pressure (normalized)
+    s1: float = 0.0  # tc, total serum cholesterol (normalized)
+    s2: float = 0.0  # ldl, low-density lipoproteins (normalized)
+    s3: float = 0.0  # hdl, high-density lipoproteins (normalized)
+    s4: float = 0.0  # tch, total cholesterol / HDL (normalized)
+    s5: float = 0.0  # ltg, log of serum triglycerides (normalized)
+    s6: float = 0.0  # glu, blood sugar level (normalized)
 
 
 class PredictionResult(BaseModel):
@@ -91,7 +94,7 @@ def load_model_artifacts():
     return {
         "model": model_artifact.load(),
         "scaler": scaler_artifact.load() if scaler_artifact else None,
-        "version": str(model_version.version),
+        "version": str(model_version.number),
     }
 
 
@@ -106,41 +109,11 @@ def preprocess_request(
 ) -> Annotated[dict, "processed_features"]:
     """Preprocess incoming patient data.
 
-    Applies the same transformations used during training.
+    For this demo, we pass the raw features directly since the training
+    data uses different features (diabetes dataset). In production,
+    you would apply the same scaler used during training.
     """
-    import pandas as pd
-
-    # Convert to DataFrame matching training format
-    features = pd.DataFrame([patient_data.model_dump()])
-
-    # Get scaler from deployment state
-    context = get_step_context()
-    artifacts = context.pipeline_state
-
-    if artifacts and artifacts.get("scaler"):
-        scaler = artifacts["scaler"]
-        # Ensure column order matches training
-        feature_cols = [
-            "age",
-            "num_procedures",
-            "num_medications",
-            "num_outpatient",
-            "num_inpatient",
-            "num_emergency",
-            "num_diagnoses",
-            "time_in_hospital",
-        ]
-        # Pad with zeros for missing features (simplified)
-        for col in feature_cols:
-            if col not in features.columns:
-                features[col] = 0
-
-        features_scaled = scaler.transform(features[feature_cols])
-        return {
-            "features": features_scaled.tolist()[0],
-            "raw": patient_data.model_dump(),
-        }
-
+    # Return raw features as a list for prediction
     return {
         "features": list(patient_data.model_dump().values()),
         "raw": patient_data.model_dump(),
@@ -155,17 +128,22 @@ def predict(
     import uuid
 
     import numpy as np
+    from zenml.client import Client
+    from zenml.enums import ModelStages
 
-    context = get_step_context()
-    artifacts = context.pipeline_state
+    # Load model directly from Model Control Plane
+    client = Client()
+    model_version = client.get_model_version(
+        model_name_or_id="patient_readmission_predictor",
+        model_version_name_or_number_or_id=ModelStages.PRODUCTION,
+    )
 
-    if not artifacts:
-        raise RuntimeError(
-            "Model artifacts not loaded. Check deployment initialization."
-        )
+    model_artifact = model_version.get_artifact("sklearn_classifier")
+    if model_artifact is None:
+        raise RuntimeError("No production model found")
 
-    model = artifacts["model"]
-    version = artifacts["version"]
+    model = model_artifact.load()
+    version = str(model_version.number)
 
     # Make prediction
     features = np.array(processed_features["features"]).reshape(1, -1)
@@ -187,18 +165,19 @@ def predict(
         "protective_factors": [],
     }
 
-    # Heuristic explanations (in production, use SHAP/LIME)
-    if raw_data.get("num_inpatient", 0) > 2:
-        explanation["top_risk_factors"].append("Multiple prior inpatient visits")
-    if raw_data.get("num_emergency", 0) > 1:
-        explanation["top_risk_factors"].append("History of emergency visits")
-    if raw_data.get("age", 0) > 70:
-        explanation["top_risk_factors"].append("Advanced age")
-    if raw_data.get("num_medications", 0) > 10:
-        explanation["top_risk_factors"].append("Complex medication regimen")
+    # Heuristic explanations based on diabetes risk factors
+    # In production, use SHAP/LIME for accurate explanations
+    if raw_data.get("bmi", 0) > 0.05:
+        explanation["top_risk_factors"].append("Elevated BMI")
+    if raw_data.get("bp", 0) > 0.05:
+        explanation["top_risk_factors"].append("High blood pressure")
+    if raw_data.get("s5", 0) > 0.05:  # log serum triglycerides
+        explanation["top_risk_factors"].append("Elevated triglycerides")
+    if raw_data.get("s6", 0) > 0.05:  # blood sugar
+        explanation["top_risk_factors"].append("Elevated blood sugar")
 
-    if raw_data.get("num_outpatient", 0) > 3:
-        explanation["protective_factors"].append("Regular outpatient follow-up")
+    if raw_data.get("s3", 0) > 0.05:  # HDL
+        explanation["protective_factors"].append("Good HDL cholesterol")
 
     return PredictionResult(
         patient_id=str(uuid.uuid4())[:8],
@@ -215,8 +194,6 @@ def predict(
         name="patient_readmission_predictor",
         version=ModelStages.PRODUCTION,
     ),
-    on_init=load_model_artifacts,
-    on_cleanup=cleanup_model_artifacts,
 )
 def inference_service(
     patient_data: PatientData = PatientData(),
@@ -261,7 +238,7 @@ async def health_check() -> dict[str, Any]:
         return {
             "status": "healthy",
             "model": "patient_readmission_predictor",
-            "version": str(mv.version),
+            "version": str(mv.number),
         }
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
