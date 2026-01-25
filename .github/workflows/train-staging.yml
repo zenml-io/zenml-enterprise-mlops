@@ -59,7 +59,7 @@ jobs:
         id: pro_build
         continue-on-error: true
         run: |
-          python build.py \
+          python scripts/build_snapshot.py \
             --environment staging \
             --stack $ZENML_STAGING_STACK \
             --run

@@ -21,6 +21,11 @@ Usage:
     python run.py --pipeline training
     python run.py --pipeline training --n-estimators 200
     python run.py --pipeline batch_inference
+    python run.py --pipeline champion_challenger
+
+For real-time inference (Pipeline Deployments):
+    zenml pipeline deploy src.pipelines.realtime_inference.inference_service \\
+        --name readmission-api
 """
 
 import click
@@ -32,7 +37,7 @@ logger = get_logger(__name__)
 @click.command()
 @click.option(
     "--pipeline",
-    type=click.Choice(["training", "batch_inference", "promotion"]),
+    type=click.Choice(["training", "batch_inference", "champion_challenger"]),
     default="training",
     help="Which pipeline to run",
 )
@@ -90,15 +95,14 @@ def main(
         batch_inference_pipeline()
         logger.info("Batch inference pipeline completed successfully!")
 
-    elif pipeline == "promotion":
-        from src.pipelines.promotion import promotion_pipeline
+    elif pipeline == "champion_challenger":
+        from src.pipelines.champion_challenger import champion_challenger_pipeline
 
-        promotion_pipeline()
-        logger.info("Promotion pipeline completed successfully!")
+        champion_challenger_pipeline()
+        logger.info("Champion/Challenger comparison completed successfully!")
 
     logger.info(
-        "\nCheck the ZenML dashboard for detailed results: "
-        "http://localhost:8237"
+        "\nCheck the ZenML dashboard for detailed results: http://localhost:8237"
     )
 
 

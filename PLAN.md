@@ -26,9 +26,9 @@ This is an enterprise-ready MLOps template showcasing ZenML best practices for r
 - Data scientists write pure Python (no wrappers!)
 - Platform team enforces governance via:
   - Pipeline hooks (auto-logging, monitoring)
-  - Base Docker images
   - Required stack components
   - Shared validation steps
+  - Terraform-managed infrastructure
 
 ### 3. GitOps Integration
 - Train on PR to staging branch
@@ -54,6 +54,13 @@ This is an enterprise-ready MLOps template showcasing ZenML best practices for r
 - Version-controlled pipelines
 - API/UI triggering
 
+### 7. Dynamic Preprocessing
+- Runtime-conditional preprocessing steps
+- Automatic SMOTE resampling when class imbalance detected
+- Automatic PCA when feature count is high
+- All decisions logged and tracked in lineage
+- Gracefully handles missing optional dependencies
+
 ## Repository Structure
 
 ```
@@ -65,9 +72,6 @@ zenml-enterprise-mlops/
 │       └── batch-inference.yml        # Scheduled daily inference
 │
 ├── governance/                        # Platform team owns/maintains
-│   ├── docker/
-│   │   ├── Dockerfile.base           # Base image with dependencies
-│   │   └── requirements.txt
 │   ├── hooks/
 │   │   ├── __init__.py
 │   │   ├── mlflow_hook.py           # Auto-log to MLflow
@@ -85,7 +89,7 @@ zenml-enterprise-mlops/
 ├── src/                              # Data scientists work here
 │   ├── pipelines/
 │   │   ├── __init__.py
-│   │   ├── training.py              # Model training pipeline
+│   │   ├── training.py              # Model training pipeline (with optional dynamic features)
 │   │   ├── promotion.py             # Model promotion pipeline
 │   │   ├── deployment.py            # Deploy to endpoint (optional)
 │   │   └── batch_inference.py       # Batch prediction pipeline
@@ -107,8 +111,9 @@ zenml-enterprise-mlops/
 │   └── deployment_config.yaml       # Deployment settings
 │
 ├── scripts/
-│   ├── setup_local.sh               # Local dev setup
+│   ├── build_snapshot.py            # Pipeline snapshot builder (Pro)
 │   ├── promote_model.py             # Model promotion CLI
+│   ├── setup_local.sh               # Local dev setup
 │   └── setup_stacks.sh              # Configure ZenML stacks
 │
 ├── notebooks/
@@ -120,7 +125,6 @@ zenml-enterprise-mlops/
 │   ├── PLATFORM_GUIDE.md            # For platform engineers
 │   └── DEPLOYMENT.md                # Deployment instructions
 │
-├── build.py                         # Pipeline snapshot builder (Pro)
 ├── run.py                           # Simple CLI to run pipelines
 ├── .dockerignore
 ├── .gitignore
@@ -136,7 +140,7 @@ zenml-enterprise-mlops/
 ### ✅ Completed
 - [x] Repository structure and foundational files
 - [x] Python package __init__ files
-- [x] Training pipeline with data loading and model training steps
+- [x] Training pipeline with optional dynamic preprocessing (SMOTE, PCA)
 - [x] Platform hooks for MLflow auto-logging
 - [x] Batch inference pipeline
 - [x] Test training pipeline locally

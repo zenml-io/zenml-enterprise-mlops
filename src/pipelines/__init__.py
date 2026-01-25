@@ -16,12 +16,14 @@
 
 """ML pipelines for the patient readmission prediction use case."""
 
-from src.pipelines.training import training_pipeline
 from src.pipelines.batch_inference import batch_inference_pipeline
-from src.pipelines.promotion import promotion_pipeline
+from src.pipelines.champion_challenger import champion_challenger_pipeline
+from src.pipelines.realtime_inference import inference_service
+from src.pipelines.training import training_pipeline
 
 __all__ = [
-    "training_pipeline",
     "batch_inference_pipeline",
-    "promotion_pipeline",
+    "champion_challenger_pipeline",
+    "inference_service",
+    "training_pipeline",
 ]

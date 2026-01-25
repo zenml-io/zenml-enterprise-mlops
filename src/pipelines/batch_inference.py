@@ -22,14 +22,63 @@ This pipeline demonstrates how to:
 - Track predictions for monitoring
 """
 
-from zenml import Model, pipeline
+from typing import Annotated
+
+import pandas as pd
+from sklearn.base import ClassifierMixin
+from sklearn.preprocessing import StandardScaler
+from zenml import Model, pipeline, step
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
 
-from governance.hooks import mlflow_success_hook, compliance_failure_hook
-from src.steps import load_data, engineer_features, predict_batch
+from governance.hooks import compliance_failure_hook, mlflow_success_hook
+from src.steps import load_data, predict_batch
 
 logger = get_logger(__name__)
+
+
+@step
+def load_production_artifacts() -> tuple[
+    Annotated[ClassifierMixin, "model"],
+    Annotated[StandardScaler, "scaler"],
+]:
+    """Load model and scaler from the Model Control Plane.
+
+    Returns:
+        Tuple of (model, scaler) from the production model version
+    """
+    from zenml import get_step_context
+
+    context = get_step_context()
+    model = context.model.load_artifact("model")
+    scaler = context.model.load_artifact("scaler")
+
+    logger.info(f"Loaded production model version: {context.model.number}")
+
+    return model, scaler
+
+
+@step
+def apply_scaler(
+    X: pd.DataFrame,
+    scaler: StandardScaler,
+) -> Annotated[pd.DataFrame, "X_scaled"]:
+    """Apply saved scaler to features.
+
+    Args:
+        X: Raw features
+        scaler: Fitted StandardScaler from training
+
+    Returns:
+        Scaled features
+    """
+    X_scaled = pd.DataFrame(
+        scaler.transform(X),
+        columns=X.columns,
+        index=X.index,
+    )
+    logger.info(f"Applied scaler to {len(X)} samples")
+    return X_scaled
 
 
 @pipeline(
@@ -45,7 +94,7 @@ def batch_inference_pipeline():
 
     This pipeline:
     1. Loads new patient data
-    2. Loads the current production model (by stage)
+    2. Loads the current production model and scaler (by stage)
     3. Engineers features using the saved scaler
     4. Generates predictions
     5. Logs predictions for monitoring
@@ -54,30 +103,17 @@ def batch_inference_pipeline():
     always uses the current production model without code changes.
     """
     # Load new data to predict on
-    X_train, X_test, _, _ = load_data()
+    _X_train, X_test, _, _ = load_data()
 
     # Use test set as new data for demo purposes
     # In production, this would load from your data warehouse
     logger.info("Loading new patient data for predictions")
 
     # Load production model and scaler from Model Control Plane
-    # The model is automatically available via the pipeline context
-    from zenml import get_pipeline_context
+    model, scaler = load_production_artifacts()
 
-    context = get_pipeline_context()
-    model = context.model.load_artifact("model")
-    scaler = context.model.load_artifact("scaler")
-
-    logger.info(f"Loaded production model: {context.model.version}")
-
-    # Engineer features using saved scaler
-    import pandas as pd
-
-    X_scaled = pd.DataFrame(
-        scaler.transform(X_test),
-        columns=X_test.columns,
-        index=X_test.index,
-    )
+    # Apply scaler transformation
+    X_scaled = apply_scaler(X_test, scaler)
 
     # Generate predictions
     predictions = predict_batch(model, X_scaled)

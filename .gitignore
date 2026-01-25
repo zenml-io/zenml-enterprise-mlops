@@ -26,6 +26,10 @@ env/
 ENV/
 .venv
 
+# uv (Astral)
+.uv/
+uv.lock
+
 # IDEs
 .vscode/
 .idea/
@@ -78,5 +82,14 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
+# Ruff
+.ruff_cache/
+
 # Testing
 .tox/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars

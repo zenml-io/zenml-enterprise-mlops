@@ -56,7 +56,7 @@ jobs:
         id: pro_build
         continue-on-error: true
         run: |
-          python build.py \
+          python scripts/build_snapshot.py \
             --environment production \
             --stack $ZENML_PRODUCTION_STACK
 
