@@ -60,7 +60,7 @@ Platform team controls these - data scientists don't modify.
 
         client = Client()
         latest = client.get_model_version(
-            "patient_readmission_predictor",
+            "breast_cancer_classifier",
             ModelStages.LATEST,
         )
 
@@ -97,7 +97,7 @@ Platform team controls these - data scientists don't modify.
 
     print_section("🚀 Promoting to Staging")
     print(
-        "Executing: python scripts/promote_model.py --model patient_readmission_predictor --to-stage staging --force\n"
+        "Executing: python scripts/promote_model.py --model breast_cancer_classifier --to-stage staging --force\n"
     )
 
     try:
@@ -106,7 +106,7 @@ Platform team controls these - data scientists don't modify.
                 sys.executable,
                 "scripts/promote_model.py",
                 "--model",
-                "patient_readmission_predictor",
+                "breast_cancer_classifier",
                 "--to-stage",
                 "staging",
                 "--force",  # For demo - replace existing staging model

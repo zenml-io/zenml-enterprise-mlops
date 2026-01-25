@@ -49,7 +49,7 @@ jobs:
           echo "## 📊 Batch Inference Completed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
-          echo "**Model:** patient_readmission_predictor (production)" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** breast_cancer_classifier (production)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check the ZenML dashboard for prediction results." >> $GITHUB_STEP_SUMMARY
 

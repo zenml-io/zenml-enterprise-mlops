@@ -104,7 +104,7 @@ python demo/chapters/chapter_6_batch_inference.py
 
 ## Customizing for Customer Demos
 
-The demo uses synthetic healthcare data. To customize:
+The demo uses sklearn's breast cancer dataset for binary classification. To customize:
 
 1. **Change domain language**: Update model name in `src/pipelines/`
 2. **Adjust thresholds**: Modify `scripts/promote_model.py` validation requirements

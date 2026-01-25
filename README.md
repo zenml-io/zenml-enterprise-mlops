@@ -113,7 +113,7 @@ See `.github/workflows/` for implementation.
 
 ```bash
 # Rollback production to previous version
-python scripts/rollback_model.py --model patient_readmission_predictor
+python scripts/rollback_model.py --model breast_cancer_classifier
 
 # Dry run first
 python scripts/rollback_model.py --dry-run
@@ -172,11 +172,11 @@ Both work with this template. Pro adds team isolation and enterprise governance.
 
 ```bash
 # Promote model between stages
-python scripts/promote_model.py --model patient_readmission_predictor --to-stage staging
+python scripts/promote_model.py --model breast_cancer_classifier --to-stage staging
 python scripts/promote_model.py --from-stage staging --to-stage production
 
 # Rollback production model
-python scripts/rollback_model.py --model patient_readmission_predictor
+python scripts/rollback_model.py --model breast_cancer_classifier
 
 # Build pipeline snapshot (Pro)
 python scripts/build_snapshot.py --environment staging --stack gcp-staging --run

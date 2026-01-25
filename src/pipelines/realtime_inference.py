@@ -104,7 +104,7 @@ def load_model_artifacts():
 
     # Load production model
     model_version = client.get_model_version(
-        model_name_or_id="patient_readmission_predictor",
+        model_name_or_id="breast_cancer_classifier",
         model_version_name_or_number_or_id=ModelStages.PRODUCTION,
     )
 
@@ -191,7 +191,7 @@ def predict(
     # Load model and scaler directly from Model Control Plane
     client = Client()
     model_version = client.get_model_version(
-        model_name_or_id="patient_readmission_predictor",
+        model_name_or_id="breast_cancer_classifier",
         model_version_name_or_number_or_id=ModelStages.PRODUCTION,
     )
 
@@ -253,7 +253,7 @@ def predict(
 
 @pipeline(
     model=Model(
-        name="patient_readmission_predictor",
+        name="breast_cancer_classifier",
         version=ModelStages.PRODUCTION,
     ),
 )
@@ -294,12 +294,12 @@ async def health_check() -> dict[str, Any]:
     try:
         # Verify we can access the model
         mv = client.get_model_version(
-            model_name_or_id="patient_readmission_predictor",
+            model_name_or_id="breast_cancer_classifier",
             model_version_name_or_number_or_id=ModelStages.PRODUCTION,
         )
         return {
             "status": "healthy",
-            "model": "patient_readmission_predictor",
+            "model": "breast_cancer_classifier",
             "version": str(mv.number),
         }
     except Exception as e:

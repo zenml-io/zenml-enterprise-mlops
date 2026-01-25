@@ -201,7 +201,7 @@ python run.py --pipeline training --environment staging
 ```bash
 # Promote staging to production
 python scripts/promote_model.py \
-    --model patient_readmission_predictor \
+    --model breast_cancer_classifier \
     --from-stage staging \
     --to-stage production
 
@@ -216,7 +216,7 @@ python scripts/promote_model.py \
 
 ```bash
 # Rollback to previous version
-python scripts/rollback_model.py --model patient_readmission_predictor
+python scripts/rollback_model.py --model breast_cancer_classifier
 
 # Rollback to specific version
 python scripts/rollback_model.py --to-version 3
@@ -323,7 +323,7 @@ Track metrics in monitoring hook:
 ```python
 def send_metrics():
     client = Client()
-    model = client.get_model("patient_readmission_predictor")
+    model = client.get_model("breast_cancer_classifier")
     prod = model.get_version(ModelStages.PRODUCTION)
 
     prometheus.gauge("model_accuracy", prod.run_metadata["accuracy"])
@@ -354,7 +354,7 @@ def detect_drift(reference: pd.DataFrame, current: pd.DataFrame) -> dict:
 2. Run data drift detection
 3. If critical, rollback:
    ```bash
-   python scripts/rollback_model.py --model patient_readmission_predictor
+   python scripts/rollback_model.py --model breast_cancer_classifier
    ```
 4. Investigate root cause
 5. Retrain if needed
@@ -405,7 +405,7 @@ zenml pipeline runs delete --keep-last=100
 
 # Archive old models
 python scripts/promote_model.py \
-    --model patient_readmission_predictor \
+    --model breast_cancer_classifier \
     --version <old-version> \
     --to-stage archived
 ```

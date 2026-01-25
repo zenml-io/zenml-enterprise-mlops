@@ -44,7 +44,7 @@ def print_banner():
 ║                                                                           ║
 ║              🏥  ENTERPRISE MLOps DEMO  🏥                                ║
 ║                                                                           ║
-║          Patient Readmission Risk Prediction                              ║
+║          Binary Classification Risk Prediction                            ║
 ║          Model Lifecycle & Promotion Flow                                 ║
 ║                                                                           ║
 ╚═══════════════════════════════════════════════════════════════════════════╝

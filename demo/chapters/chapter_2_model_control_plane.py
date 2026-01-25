@@ -43,7 +43,7 @@ Key points to highlight:
         print("📋 All Model Versions:\n")
         try:
             versions = client.list_model_versions(
-                model="patient_readmission_predictor",
+                model="breast_cancer_classifier",
             )
 
             if not versions:
@@ -78,11 +78,11 @@ Key points to highlight:
     try:
         # Get latest version
         latest = client.get_model_version(
-            "patient_readmission_predictor",
+            "breast_cancer_classifier",
             ModelStages.LATEST,
         )
 
-        print(f"Model: patient_readmission_predictor v{latest.number}\n")
+        print(f"Model: breast_cancer_classifier v{latest.number}\n")
 
         metrics = latest.run_metadata
         if metrics:
@@ -148,7 +148,7 @@ To load artifacts from a model version in your code:
     # Get the production model
     client = Client()
     model = client.get_model_version(
-        "patient_readmission_predictor",
+        "breast_cancer_classifier",
         ModelStages.PRODUCTION
     )
 

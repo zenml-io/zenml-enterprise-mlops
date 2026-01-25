@@ -8,8 +8,8 @@ This is an enterprise-ready MLOps template showcasing ZenML best practices for r
 
 ## Use Case
 
-**Patient Readmission Risk Prediction**
-- Healthcare-relevant but uses public data (UCI Diabetes dataset)
+**Breast Cancer Classification**
+- Uses sklearn's breast cancer dataset for binary classification
 - Demonstrates compliance, audit trails, and governance
 - Shows complete ML lifecycle from training to batch inference
 - Production-ready patterns applicable to any supervised ML problem
@@ -175,7 +175,7 @@ from zenml import Model, pipeline
 
 @pipeline(
     model=Model(
-        name="patient_readmission_predictor",
+        name="breast_cancer_classifier",
         version="production",
         description="Predicts 30-day readmission risk"
     )

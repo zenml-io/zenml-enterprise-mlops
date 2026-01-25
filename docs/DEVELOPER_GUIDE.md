@@ -258,7 +258,7 @@ python run.py --pipeline dynamic_training
    zenml model list
 
    # Show model details
-   zenml model describe patient_readmission_predictor
+   zenml model describe breast_cancer_classifier
    ```
 
 ## Working with Models
@@ -270,9 +270,9 @@ Models are automatically registered when you use `@pipeline(model=Model(...))`:
 ```python
 @pipeline(
     model=Model(
-        name="patient_readmission_predictor",
+        name="breast_cancer_classifier",
         version="1.0.0",  # Optional: semantic versioning
-        description="Predicts 30-day readmission risk",
+        description="Binary classification for risk prediction",
         tags=["healthcare", "classification"]
     )
 )
@@ -289,11 +289,11 @@ from zenml import Model
 from zenml.client import Client
 
 # Load by version number
-model = Model(name="patient_readmission_predictor", version="1")
+model = Model(name="breast_cancer_classifier", version="1")
 trained_model = model.load_artifact("model")
 
 # Load by stage (production, staging, etc.)
-model = Model(name="patient_readmission_predictor", version=ModelStages.PRODUCTION)
+model = Model(name="breast_cancer_classifier", version=ModelStages.PRODUCTION)
 production_model = model.load_artifact("model")
 ```
 

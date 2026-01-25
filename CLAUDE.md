@@ -147,7 +147,7 @@ Schedule (daily) → Run batch inference
 **Pattern**: Single source of truth for all model metadata
 
 ```
-Model: patient_readmission_predictor
+Model: breast_cancer_classifier
 ├── Version 1 (archived)
 ├── Version 2 (staging)
 └── Version 3 (production)

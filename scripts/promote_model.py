@@ -22,13 +22,13 @@ Typically triggered by GitHub Actions on PR merge or release creation.
 
 Usage:
     # Promote latest model to staging
-    python scripts/promote_model.py --model patient_readmission_predictor --to-stage staging
+    python scripts/promote_model.py --model breast_cancer_classifier --to-stage staging
 
     # Promote specific version to production
-    python scripts/promote_model.py --model patient_readmission_predictor --version 1.2.3 --to-stage production
+    python scripts/promote_model.py --model breast_cancer_classifier --version 1.2.3 --to-stage production
 
     # Promote latest staging to production
-    python scripts/promote_model.py --model patient_readmission_predictor --from-stage staging --to-stage production
+    python scripts/promote_model.py --model breast_cancer_classifier --from-stage staging --to-stage production
 """
 
 import click

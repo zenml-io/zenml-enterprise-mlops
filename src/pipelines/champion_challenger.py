@@ -21,7 +21,7 @@ import pandas as pd
 from zenml import Model, get_step_context, pipeline, step
 from zenml.enums import ModelStages
 
-MODEL_NAME = "patient_readmission_predictor"
+MODEL_NAME = "breast_cancer_classifier"
 
 
 @step

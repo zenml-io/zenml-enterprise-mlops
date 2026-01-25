@@ -64,7 +64,7 @@ To promote to PRODUCTION, a model must meet:
 
         try:
             staging = client.get_model_version(
-                "patient_readmission_predictor",
+                "breast_cancer_classifier",
                 ModelStages.STAGING,
             )
         except KeyError:
@@ -104,7 +104,7 @@ To promote to PRODUCTION, a model must meet:
 
     print_section("🚀 Promoting to Production")
     print(
-        "Executing: python scripts/promote_model.py --model patient_readmission_predictor "
+        "Executing: python scripts/promote_model.py --model breast_cancer_classifier "
         "--from-stage staging --to-stage production --force --skip-validation\n"
     )
 
@@ -114,7 +114,7 @@ To promote to PRODUCTION, a model must meet:
                 sys.executable,
                 "scripts/promote_model.py",
                 "--model",
-                "patient_readmission_predictor",
+                "breast_cancer_classifier",
                 "--from-stage",
                 "staging",
                 "--to-stage",
@@ -156,7 +156,7 @@ In production, this is triggered by a GitHub Release:
 
   Command used:
     python scripts/promote_model.py \\
-        --model patient_readmission_predictor \\
+        --model breast_cancer_classifier \\
         --from-stage staging \\
         --to-stage production \\
         --force

@@ -178,7 +178,7 @@ def check_and_apply_pca(
 
 @pipeline(
     model=Model(
-        name="patient_readmission_predictor",
+        name="breast_cancer_classifier",
         description="Binary classification model for risk prediction",
         tags=["classification", "sklearn", "production"],
     ),

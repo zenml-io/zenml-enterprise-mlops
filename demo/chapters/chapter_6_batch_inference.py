@@ -41,7 +41,7 @@ The key pattern - load model by STAGE:
 
     @pipeline(
         model=Model(
-            name="patient_readmission_predictor",
+            name="breast_cancer_classifier",
             version=ModelStages.PRODUCTION,  # ← Always uses current production
         ),
     )
@@ -68,7 +68,7 @@ Benefits:
 
         try:
             prod = client.get_model_version(
-                "patient_readmission_predictor",
+                "breast_cancer_classifier",
                 ModelStages.PRODUCTION,
             )
             print(f"  Production Model: v{prod.number}")

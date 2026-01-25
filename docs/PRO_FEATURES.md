@@ -24,8 +24,8 @@ Workspace: "enterprise-ml"
 │   └── Stacks: team-a-staging, team-a-production
 │
 ├── Project: patient-outcomes (Team B)
-│   ├── Pipelines: readmission_training, mortality_prediction
-│   ├── Models: ReadmissionPredictor, MortalityModel
+│   ├── Pipelines: risk_training, outcome_prediction
+│   ├── Models: RiskPredictor, OutcomeModel
 │   └── Stacks: team-b-staging, team-b-production
 │
 └── Project: platform-shared (Platform Team)
@@ -134,7 +134,7 @@ python scripts/build_snapshot.py \
     --stack gcp-staging \
     --git-sha $GITHUB_SHA
 
-# Snapshot name: STG_readmission_model_abc1234
+# Snapshot name: STG_risk_model_abc1234
 # This snapshot is immutable - same code runs every time
 ```
 

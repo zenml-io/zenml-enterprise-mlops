@@ -43,7 +43,7 @@ Here's what the training pipeline looks like (src/pipelines/training.py):
     from governance.hooks import pipeline_success_hook, pipeline_failure_hook
 
     @pipeline(
-        model=Model(name="patient_readmission_predictor"),
+        model=Model(name="breast_cancer_classifier"),
         on_success=pipeline_success_hook,    # ← Slack notification
         on_failure=pipeline_failure_hook,    # ← Slack alert + compliance log
     )

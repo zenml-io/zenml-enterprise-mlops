@@ -102,7 +102,7 @@ ZenML Instance
 └── Workspace: "enterprise-ml"
     ├── Project: "healthcare-models" (Pro) / "default" (OSS)
     │   ├── Stacks: dev, staging, production
-    │   ├── Models: patient_readmission_predictor
+    │   ├── Models: breast_cancer_classifier
     │   └── Pipelines: training, batch_inference
     │
     ├── Project: "fraud-detection" (Pro only)
@@ -313,7 +313,7 @@ Stacks
 - Examples: `dev`, `staging`, `production` (OSS)
 
 **Models**: `{purpose}_{type}`
-- Examples: `patient_readmission_predictor`, `diagnosis_classifier`
+- Examples: `breast_cancer_classifier`, `diagnosis_classifier`
 
 **Pipelines**: `{purpose}_pipeline`
 - Examples: `training_pipeline`, `batch_inference_pipeline`
@@ -395,7 +395,7 @@ Hooks run automatically and transparently:
 ZenML's Model Control Plane serves as the **single source of truth**:
 
 ```
-Model: patient_readmission_predictor
+Model: breast_cancer_classifier
 ├── Version 1 (archived)
 ├── Version 2 (staging)
 └── Version 3 (production) ← Active version

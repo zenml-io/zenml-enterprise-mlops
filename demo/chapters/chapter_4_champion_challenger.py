@@ -80,7 +80,7 @@ Key points to highlight:
         # Check production
         try:
             prod = client.get_model_version(
-                "patient_readmission_predictor",
+                "breast_cancer_classifier",
                 ModelStages.PRODUCTION,
             )
             print(f"  🏆 Champion (Production): v{prod.number}")
@@ -91,7 +91,7 @@ Key points to highlight:
         # Check staging
         try:
             staging = client.get_model_version(
-                "patient_readmission_predictor",
+                "breast_cancer_classifier",
                 ModelStages.STAGING,
             )
             print(f"  🥊 Challenger (Staging):   v{staging.number}")

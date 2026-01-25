@@ -83,7 +83,7 @@ def apply_scaler(
 
 @pipeline(
     model=Model(
-        name="patient_readmission_predictor",
+        name="breast_cancer_classifier",
         version=ModelStages.PRODUCTION,  # Always use production model
     ),
     on_success=pipeline_success_hook,
@@ -107,7 +107,7 @@ def batch_inference_pipeline():
 
     # Use test set as new data for demo purposes
     # In production, this would load from your data warehouse
-    logger.info("Loading new patient data for predictions")
+    logger.info("Loading new data for predictions")
 
     # Load production model and scaler from Model Control Plane
     model, scaler = load_production_artifacts()

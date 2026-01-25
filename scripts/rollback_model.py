@@ -24,13 +24,13 @@ This script handles rollback scenarios when a promoted model underperforms:
 
 Usage:
     # Rollback production to previous version
-    python scripts/rollback_model.py --model patient_readmission_predictor
+    python scripts/rollback_model.py --model breast_cancer_classifier
 
     # Rollback to a specific version
-    python scripts/rollback_model.py --model patient_readmission_predictor --to-version 3
+    python scripts/rollback_model.py --model breast_cancer_classifier --to-version 3
 
     # Dry run (show what would happen)
-    python scripts/rollback_model.py --model patient_readmission_predictor --dry-run
+    python scripts/rollback_model.py --model breast_cancer_classifier --dry-run
 """
 
 import click
@@ -40,7 +40,7 @@ from zenml.logger import get_logger
 
 logger = get_logger(__name__)
 
-MODEL_NAME = "patient_readmission_predictor"
+MODEL_NAME = "breast_cancer_classifier"
 
 
 def get_previous_production_version(

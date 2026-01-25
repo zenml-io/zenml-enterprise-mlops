@@ -102,11 +102,11 @@ jobs:
         run: |
           if [ "${{ steps.version.outputs.version }}" == "latest" ]; then
             python scripts/promote_model.py \
-              --model patient_readmission_predictor \
+              --model breast_cancer_classifier \
               --to-stage staging
           else
             python scripts/promote_model.py \
-              --model patient_readmission_predictor \
+              --model breast_cancer_classifier \
               --version ${{ steps.version.outputs.version }} \
               --to-stage staging
           fi
@@ -119,7 +119,7 @@ jobs:
           fi
 
           python scripts/promote_model.py \
-            --model patient_readmission_predictor \
+            --model breast_cancer_classifier \
             --from-stage staging \
             --to-stage production \
             $FORCE_FLAG
@@ -129,6 +129,6 @@ jobs:
         run: |
           echo "## 🚀 Production Promotion Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Model:** patient_readmission_predictor" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** breast_cancer_classifier" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
