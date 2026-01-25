@@ -347,6 +347,25 @@ All core patterns work identically:
 
 **Invoke**: `curl -X POST http://localhost:8000/invoke -d '{"parameters": {"patient_data": {"age": 72}}}'`
 
+### 9. Platform-Managed Docker Settings
+
+**Show**: `governance/docker/docker_settings.py`
+
+**Point**: "Platform team controls containerization. Data scientists get consistent, secure environments without writing Dockerfiles. GPU, CPU, lightweight configs ready to use."
+
+**Usage**:
+```python
+from governance.docker import STANDARD_DOCKER_SETTINGS, GPU_DOCKER_SETTINGS
+
+@pipeline(settings={"docker": STANDARD_DOCKER_SETTINGS})
+def training_pipeline():
+    ...
+
+@step(settings={"docker": GPU_DOCKER_SETTINGS})
+def train_with_gpu():
+    ...
+```
+
 ## Common Issues & Solutions
 
 ### Issue: "Why not use if/else in pipeline?"
@@ -412,7 +431,8 @@ These are meant to be extended/customized:
 - ✅ Add more orchestrators (Kubernetes, Databricks)
 - ✅ Add log stores (OTEL, Datadog)
 - ✅ Add shared governance steps
-- ✅ Add base Docker images
+- ✅ Add Docker settings for specialized workloads (NLP, vision, etc.)
+- ✅ Add base Docker images with custom dependencies
 - ✅ Add more validation logic
 - ✅ Add monitoring integrations
 
@@ -454,6 +474,7 @@ For enterprise demos, we need to show:
 6. ✅ **Production-ready** - Real Terraform, GitHub Actions, not toys
 7. ✅ **Champion/Challenger** - Safe model rollouts with A/B comparison
 8. ✅ **Real-time serving** - Pipeline Deployments for HTTP inference
+9. ✅ **Containerization** - Platform-managed Docker settings for consistent environments
 
 ## Context for Questions
 

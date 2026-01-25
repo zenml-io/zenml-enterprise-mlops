@@ -112,3 +112,19 @@ class TestGovernanceImports:
 
         assert validate_data_quality is not None
         assert validate_model_performance is not None
+
+    def test_import_docker_settings(self):
+        """Governance docker settings should import."""
+        from governance.docker import (
+            BASE_DOCKER_SETTINGS,
+            GPU_DOCKER_SETTINGS,
+            LIGHTWEIGHT_DOCKER_SETTINGS,
+            STANDARD_DOCKER_SETTINGS,
+            get_docker_settings,
+        )
+
+        assert STANDARD_DOCKER_SETTINGS is not None
+        assert GPU_DOCKER_SETTINGS is not None
+        assert LIGHTWEIGHT_DOCKER_SETTINGS is not None
+        assert BASE_DOCKER_SETTINGS is not None
+        assert get_docker_settings is not None

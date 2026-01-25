@@ -28,6 +28,11 @@ governance/
 ├── materializers/      # Enhanced artifact handling
 │   └── dataframe_materializer.py
 │
+├── docker/             # Container configuration
+│   ├── docker_settings.py      # Pre-configured DockerSettings
+│   ├── Dockerfile.base         # Platform base image
+│   └── README.md               # Docker usage guide
+│
 └── stacks/             # Infrastructure
     └── terraform/              # IaC configurations
 ```
@@ -95,6 +100,48 @@ def load_data() -> pd.DataFrame:
     """Data automatically tracked with enhanced metadata"""
     return pd.read_csv("data.csv")
 ```
+
+### Docker Settings (Container Configuration)
+
+Platform-managed Docker settings ensure consistent environments:
+
+```python
+from zenml import pipeline, step
+from governance.docker import STANDARD_DOCKER_SETTINGS, GPU_DOCKER_SETTINGS
+
+# Apply to entire pipeline
+@pipeline(settings={"docker": STANDARD_DOCKER_SETTINGS})
+def training_pipeline():
+    data = load_data()
+    model = train_model(data)
+    return model
+
+# Or per-step for specialized needs
+@step(settings={"docker": GPU_DOCKER_SETTINGS})
+def train_with_gpu(data):
+    import torch
+    # GPU training code
+    ...
+```
+
+Available configurations:
+- `STANDARD_DOCKER_SETTINGS` - Python 3.11, MLflow, sklearn
+- `GPU_DOCKER_SETTINGS` - PyTorch with CUDA 11.8
+- `LIGHTWEIGHT_DOCKER_SETTINGS` - Minimal for preprocessing
+
+Customize with `get_docker_settings()`:
+
+```python
+from governance.docker import get_docker_settings
+
+settings = get_docker_settings(
+    base="standard",
+    extra_integrations=["huggingface"],
+    extra_requirements=["transformers>=4.30.0"],
+)
+```
+
+See [Docker README](docker/README.md) for full documentation.
 
 ## For Platform Engineers
 

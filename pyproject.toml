@@ -7,7 +7,7 @@ name = "zenml-enterprise-mlops"
 version = "0.1.0"
 description = "Enterprise MLOps template showcasing ZenML best practices for regulated industries"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "ZenML GmbH", email = "info@zenml.io"},
@@ -220,4 +220,12 @@ exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+]
+
+[tool.uv.sources]
+zenml-enterprise-mlops = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "zenml-enterprise-mlops[dev]",
 ]

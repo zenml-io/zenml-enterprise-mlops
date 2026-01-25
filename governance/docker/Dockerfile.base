@@ -1,0 +1,119 @@
+# Platform Base Image for ZenML Pipelines
+#
+# This Dockerfile is maintained by the platform team and provides:
+# - Curated, security-patched base dependencies
+# - Consistent environment across all teams
+# - Pre-installed ZenML with common integrations
+#
+# Based on official ZenML Dockerfile patterns.
+#
+# Build:
+#   docker build -t your-registry/zenml-base:v1.0.0 -f governance/docker/Dockerfile.base .
+#
+# Usage with DockerSettings:
+#   DockerSettings(parent_image="your-registry/zenml-base:v1.0.0")
+
+ARG PYTHON_VERSION=3.11
+ARG VIRTUAL_ENV=/opt/venv
+ARG USERNAME=zenml
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG ZENML_VERSION=0.92.1
+
+# =============================================================================
+# Base stage - minimal system with security updates
+# =============================================================================
+FROM python:${PYTHON_VERSION}-slim-bookworm AS base
+
+# Update system packages to reduce vulnerabilities
+RUN set -ex \
+    && apt-get update \
+    && apt-get upgrade -y \
+    && apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --upgrade pip setuptools
+
+# =============================================================================
+# Builder stage - install dependencies in virtual environment
+# =============================================================================
+FROM base AS builder
+
+ARG VIRTUAL_ENV
+ARG ZENML_VERSION
+
+ENV VIRTUAL_ENV=$VIRTUAL_ENV \
+    PIP_DEFAULT_TIMEOUT=100 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /zenml
+
+# Create virtual environment
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Install ZenML with common integrations
+RUN pip install --upgrade pip uv setuptools \
+    && uv pip install \
+        "zenml==${ZENML_VERSION}" \
+        "zenml[mlflow,sklearn]==${ZENML_VERSION}" \
+    && uv pip freeze > requirements.txt
+
+# =============================================================================
+# Runtime stage - minimal image for running pipelines
+# =============================================================================
+FROM base AS runtime
+
+ARG VIRTUAL_ENV
+ARG USERNAME
+ARG USER_UID
+ARG USER_GID
+
+ENV VIRTUAL_ENV=$VIRTUAL_ENV \
+    # Performance settings
+    PIP_DEFAULT_TIMEOUT=100 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    # Python settings - buffered for performance with remote artifact stores
+    PYTHONUNBUFFERED=0 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONHASHSEED=random \
+    PYTHONDONTWRITEBYTECODE=1 \
+    # ZenML settings
+    ZENML_CONTAINER=1
+
+WORKDIR /app
+
+# Install runtime system dependencies
+RUN set -ex \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        ca-certificates \
+    && apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && chown -R $USER_UID:$USER_GID /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /zenml/requirements.txt /app/requirements.txt
+
+ENV PATH="$VIRTUAL_ENV/bin:/home/$USERNAME/.local/bin:$PATH"
+
+# Switch to non-root user
+USER $USERNAME
+
+# =============================================================================
+# Labels for compliance and traceability
+# =============================================================================
+LABEL maintainer="platform-team@company.com"
+LABEL org.opencontainers.image.title="ZenML Enterprise Base Image"
+LABEL org.opencontainers.image.description="Platform-managed base image for ML pipelines"
+LABEL org.opencontainers.image.version="1.0.0"
