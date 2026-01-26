@@ -59,7 +59,7 @@ import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import click
 import joblib
@@ -531,9 +531,9 @@ def promote_cross_workspace(
             logger.info("\n✅ Export complete. Model ready for import.")
             logger.info(f"Export path: {manifest['export_path']}")
             logger.info("\nTo import, run:")
-            logger.info(f"  python scripts/promote_cross_workspace.py \\")
+            logger.info("  python scripts/promote_cross_workspace.py \\")
             logger.info(f"    --model {model} \\")
-            logger.info(f"    --dest-workspace enterprise-production \\")
+            logger.info("    --dest-workspace enterprise-production \\")
             logger.info(f"    --import-from {manifest['export_path']}")
             return
     else:

@@ -30,7 +30,7 @@ provider "aws" {
 # https://registry.terraform.io/modules/zenml-io/zenml-stack/aws/latest
 module "zenml_stack" {
   source  = "zenml-io/zenml-stack/aws"
-  version = "~> 0.1"  # Pin to specific version for production stability
+  version = "~> 0.1" # Pin to specific version for production stability
 
   # Stack configuration
   zenml_stack_name            = var.stack_name
@@ -64,7 +64,7 @@ output "zenml_stack_name" {
 output "s3_artifact_store_path" {
   description = "S3 path for artifact storage"
   value       = module.zenml_stack.s3_artifact_store_path
-  sensitive   = true  # May contain account details
+  sensitive   = true # May contain account details
 }
 
 output "ecr_repository_url" {

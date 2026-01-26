@@ -41,7 +41,7 @@ module "zenml_stack" {
   # Stack configuration
   zenml_stack_name            = var.stack_name
   zenml_stack_deployment_name = var.deployment_name
-  orchestrator                = var.orchestrator  # "vertex" for Vertex AI
+  orchestrator                = var.orchestrator # "vertex" for Vertex AI
 
   # GCP-specific settings
   project_id = var.project_id
@@ -168,15 +168,15 @@ output "workload_identity_provider" {
 
 output "github_actions_setup" {
   description = "Configuration for GitHub Actions"
-  value = var.enable_workload_identity ? <<-EOT
-    # Add to your GitHub Actions workflow:
-
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${google_iam_workload_identity_pool_provider.github_provider[0].name}
-        service_account: ${module.zenml_stack.service_account_email}
-  EOT : "Workload Identity not enabled"
+  value = var.enable_workload_identity ? join("\n", [
+    "# Add to your GitHub Actions workflow:",
+    "",
+    "- name: Authenticate to Google Cloud",
+    "  uses: google-github-actions/auth@v2",
+    "  with:",
+    "    workload_identity_provider: ${google_iam_workload_identity_pool_provider.github_provider[0].name}",
+    "    service_account: ${module.zenml_stack.service_account_email}"
+  ]) : "Workload Identity not enabled"
 }
 
 output "post_deployment_instructions" {

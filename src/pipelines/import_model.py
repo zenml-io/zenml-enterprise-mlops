@@ -25,7 +25,7 @@ The pipeline creates proper lineage in the destination workspace while
 maintaining audit trail links back to the source workspace.
 """
 
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
 from sklearn.base import ClassifierMixin, TransformerMixin
 from zenml import ArtifactConfig, Model, get_step_context, log_metadata, pipeline, step
@@ -206,7 +206,7 @@ def import_model_pipeline(
         import_metadata=import_metadata,
     )
 
-    registered_scaler = register_imported_scaler(scaler=scaler_artifact)
+    register_imported_scaler(scaler=scaler_artifact)
 
     # Log metadata for audit trail
     import_record = log_cross_workspace_metadata(
@@ -215,7 +215,7 @@ def import_model_pipeline(
     )
 
     # Set stage (after metadata is logged)
-    stage_result = set_model_stage(
+    set_model_stage(
         import_record=import_record,
         dest_stage=dest_stage,
     )

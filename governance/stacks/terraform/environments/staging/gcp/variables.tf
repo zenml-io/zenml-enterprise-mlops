@@ -23,7 +23,7 @@ variable "region" {
 variable "stack_name" {
   description = "Name of the ZenML stack"
   type        = string
-  default     = "staging-stack"  # Part of enterprise-dev-staging workspace
+  default     = "staging-stack" # Part of enterprise-dev-staging workspace
 }
 
 variable "deployment_name" {

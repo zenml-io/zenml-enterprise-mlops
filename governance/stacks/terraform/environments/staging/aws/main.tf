@@ -30,7 +30,7 @@ provider "aws" {
 # https://registry.terraform.io/modules/zenml-io/zenml-stack/aws/latest
 module "zenml_stack" {
   source  = "zenml-io/zenml-stack/aws"
-  version = "~> 0.1"  # Check for latest version
+  version = "~> 0.1" # Check for latest version
 
   # Stack configuration
   zenml_stack_name            = var.stack_name

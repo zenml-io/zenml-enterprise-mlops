@@ -47,6 +47,7 @@ import click
 from zenml.client import Client
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
+from zenml.models import ModelVersionResponse
 
 logger = get_logger(__name__)
 

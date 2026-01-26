@@ -44,7 +44,7 @@ module "zenml_stack" {
   # Stack configuration
   zenml_stack_name            = var.stack_name
   zenml_stack_deployment_name = var.deployment_name
-  orchestrator                = "local"  # Local for fast iteration
+  orchestrator                = "local" # Local for fast iteration
 
   # GCP-specific settings
   project_id = var.project_id
