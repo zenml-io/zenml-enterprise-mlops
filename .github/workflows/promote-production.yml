@@ -1,5 +1,14 @@
 name: Promote to Production
 
+# This workflow handles cross-workspace model promotion from enterprise-dev-staging
+# to enterprise-production. Part of the 2-workspace architecture for ZenML version
+# upgrade isolation.
+#
+# Flow:
+# 1. Export model from dev-staging workspace to shared GCS bucket
+# 2. Wait for approval (GitHub environment protection)
+# 3. Import model into production workspace with full metadata
+
 on:
   release:
     types: [published]
@@ -7,9 +16,9 @@ on:
   workflow_dispatch:
     inputs:
       model_version:
-        description: 'Model version to promote (e.g., 1 or "latest")'
+        description: 'Model version to promote (e.g., 1 or "staging" for latest staging)'
         required: false
-        default: 'latest'
+        default: 'staging'
       force:
         description: 'Force promotion (demote current production model)'
         required: false
@@ -17,15 +26,148 @@ on:
         default: false
 
 jobs:
-  build-snapshot:
+  # Job 1: Export model from dev-staging workspace
+  export-model:
+    runs-on: ubuntu-latest
+    outputs:
+      export_path: ${{ steps.export.outputs.path }}
+      model_version: ${{ steps.version.outputs.version }}
+    env:
+      # 2-Workspace Architecture: Connect to dev-staging for export
+      ZENML_DEV_STAGING_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
+      ZENML_PROJECT: cancer-detection
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      # Connect to dev-staging workspace (source of models)
+      - name: Connect to dev-staging workspace
+        run: |
+          zenml login enterprise-dev-staging --api-key $ZENML_DEV_STAGING_API_KEY
+          zenml project set $ZENML_PROJECT
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # For releases, use tag name or default to staging
+            VERSION="${{ github.event.release.tag_name }}"
+            if [[ ! "$VERSION" =~ ^[0-9]+$ ]]; then
+              VERSION="staging"
+            fi
+          else
+            VERSION="${{ github.event.inputs.model_version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Export model to shared bucket
+        id: export
+        run: |
+          python scripts/promote_cross_workspace.py \
+            --model breast_cancer_classifier \
+            --source-workspace enterprise-dev-staging \
+            --source-stage ${{ steps.version.outputs.version }} \
+            --export-only
+
+          # The script writes the export path to export_path.txt
+          EXPORT_PATH=$(cat export_path.txt)
+          echo "path=$EXPORT_PATH" >> $GITHUB_OUTPUT
+
+      - name: Create export summary
+        run: |
+          echo "## 📦 Model Export Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** breast_cancer_classifier" >> $GITHUB_STEP_SUMMARY
+          echo "**Source:** enterprise-dev-staging workspace" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Export Path:** ${{ steps.export.outputs.path }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Waiting for production deployment approval..." >> $GITHUB_STEP_SUMMARY
+
+  # Job 2: Import model into production workspace (requires approval)
+  import-model:
+    needs: export-model
     runs-on: ubuntu-latest
     environment:
-      name: production
+      name: production  # GitHub environment with approval gate
     env:
-      ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
-      ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
-      ZENML_PROJECT: ${{ secrets.ZENML_PROJECT || 'default' }}
-      ZENML_PRODUCTION_STACK: ${{ secrets.ZENML_PRODUCTION_STACK || 'default' }}
+      # 2-Workspace Architecture: Connect to production for import
+      ZENML_PRODUCTION_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+      ZENML_PROJECT: cancer-detection
+      ZENML_STACK: gcp-stack
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      # Connect to production workspace (destination for models)
+      - name: Connect to production workspace
+        run: |
+          zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
+          zenml project set $ZENML_PROJECT
+          zenml stack set $ZENML_STACK
+
+      - name: Import model to production
+        run: |
+          FORCE_FLAG=""
+          if [ "${{ github.event.inputs.force }}" == "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+
+          python scripts/promote_cross_workspace.py \
+            --model breast_cancer_classifier \
+            --dest-workspace enterprise-production \
+            --import-from "${{ needs.export-model.outputs.export_path }}" \
+            --dest-stage production \
+            $FORCE_FLAG
+
+      - name: Create promotion summary
+        if: success()
+        run: |
+          echo "## 🚀 Production Promotion Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** breast_cancer_classifier" >> $GITHUB_STEP_SUMMARY
+          echo "**Source Version:** ${{ needs.export-model.outputs.model_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Destination:** enterprise-production workspace" >> $GITHUB_STEP_SUMMARY
+          echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Cross-Workspace Lineage" >> $GITHUB_STEP_SUMMARY
+          echo "Full training lineage preserved in **enterprise-dev-staging**." >> $GITHUB_STEP_SUMMARY
+          echo "Metadata and audit links available in **enterprise-production**." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View the model in the [ZenML Dashboard](https://cloud.zenml.io)" >> $GITHUB_STEP_SUMMARY
+
+  # Job 3: Build batch inference snapshot in production
+  build-inference-snapshot:
+    needs: import-model
+    runs-on: ubuntu-latest
+    env:
+      ZENML_PRODUCTION_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+      ZENML_PROJECT: cancer-detection
+      ZENML_STACK: gcp-stack
       ZENML_GITHUB_SHA: ${{ github.sha }}
 
     steps:
@@ -43,92 +185,25 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      - name: Connect to ZenML
+      - name: Connect to production workspace
         run: |
-          zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+          zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
           zenml project set $ZENML_PROJECT
+          zenml stack set $ZENML_STACK
 
-      - name: Set stack
-        run: zenml stack set $ZENML_PRODUCTION_STACK
-
-      # Create production snapshot (don't run yet - requires approval)
-      - name: Build production snapshot (Pro)
+      # Build snapshot for batch inference (Pro feature)
+      - name: Build batch inference snapshot (Pro)
         id: pro_build
         continue-on-error: true
         run: |
           python scripts/build_snapshot.py \
+            --pipeline batch_inference \
             --environment production \
-            --stack $ZENML_PRODUCTION_STACK
+            --stack $ZENML_STACK
 
-  promote-model:
-    needs: build-snapshot
-    runs-on: ubuntu-latest
-    env:
-      ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
-      ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
-      ZENML_PROJECT: ${{ secrets.ZENML_PROJECT || 'default' }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install dependencies
-        run: uv pip install --system -r requirements.txt
-
-      - name: Connect to ZenML
+      - name: Create snapshot summary
+        if: steps.pro_build.outcome == 'success'
         run: |
-          zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
-          zenml project set $ZENML_PROJECT
-
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-          else
-            VERSION="${{ github.event.inputs.model_version }}"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Promote to staging
-        run: |
-          if [ "${{ steps.version.outputs.version }}" == "latest" ]; then
-            python scripts/promote_model.py \
-              --model breast_cancer_classifier \
-              --to-stage staging
-          else
-            python scripts/promote_model.py \
-              --model breast_cancer_classifier \
-              --version ${{ steps.version.outputs.version }} \
-              --to-stage staging
-          fi
-
-      - name: Promote to production
-        run: |
-          FORCE_FLAG=""
-          if [ "${{ github.event.inputs.force }}" == "true" ]; then
-            FORCE_FLAG="--force"
-          fi
-
-          python scripts/promote_model.py \
-            --model breast_cancer_classifier \
-            --from-stage staging \
-            --to-stage production \
-            $FORCE_FLAG
-
-      - name: Create summary
-        if: success()
-        run: |
-          echo "## 🚀 Production Promotion Successful" >> $GITHUB_STEP_SUMMARY
+          echo "## 📸 Batch Inference Snapshot Created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Model:** breast_cancer_classifier" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Stage:** production" >> $GITHUB_STEP_SUMMARY
+          echo "Pipeline snapshot ready for scheduled inference runs." >> $GITHUB_STEP_SUMMARY

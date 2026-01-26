@@ -34,20 +34,43 @@ src/            # Data scientists own (ML code, pipelines, steps)
 
 **Rationale**: In regulated industries, the platform team enforces compliance/governance while data scientists focus on ML. Clean separation makes responsibilities clear.
 
-### Single Workspace Architecture
+### 2-Workspace Architecture
 
-**Decision**: Recommend single workspace + multiple projects (Pro) or single project + environment stacks (OSS)
+**Decision**: Recommend 2 workspaces for environment isolation (Pro) or 2 separate ZenML servers (OSS)
 
-**Why**:
-- **Enterprise customers' #1 pain point is model promotion** - workspace isolation breaks promotion workflows
-- Platform team needs visibility across all teams
-- Shared governance components (hooks, base images, validation)
-- Simpler credential management
+```
+Organization: Enterprise MLOps
+│
+├── Workspace: enterprise-dev-staging
+│   ├── Project: cancer-detection
+│   ├── Stack: dev-stack (local orchestrator, fast iteration)
+│   ├── Stack: staging-stack (Vertex AI, production-like testing)
+│   ├── Training pipeline runs (FULL LINEAGE)
+│   └── Model versions (none → staging stages)
+│
+└── Workspace: enterprise-production
+    ├── Project: cancer-detection
+    ├── Stack: gcp-stack (Vertex AI, production)
+    ├── Imported model versions (production stage)
+    └── Production batch inference runs (INFERENCE LINEAGE)
+```
 
-**Why NOT multiple workspaces**:
-- Physical isolation prevents model promotion across workspaces
-- Breaks dev → staging → production workflow
-- Only use for hard regulatory boundaries (e.g., different compliance zones)
+**Why 2 workspaces (not 1, not 3)?**:
+- **ZenML version upgrade isolation** - upgrade dev-staging first, test, then production
+- **Full training lineage preserved** in dev-staging workspace
+- **Inference lineage preserved** in production workspace
+- **Single lineage break** at the staging → production boundary (not two breaks)
+- **Clear workflow**: Dev → Staging (same workspace, full lineage) → Production (cross-workspace)
+
+**Why NOT single workspace?**:
+- ZenML version upgrades in single workspace affect all environments
+- Production disruption risk during upgrades
+- No isolation between development experimentation and production stability
+
+**Why NOT 3 workspaces (one per environment)?**:
+- Two lineage breaks instead of one
+- More complex promotion workflow
+- Staging validation loses connection to training lineage
 
 ### Pro-First, OSS-Compatible
 
@@ -226,33 +249,56 @@ if meets_production_criteria():
 ### For Pro Users (Primary Demo Audience)
 
 **Show**:
-- Multiple projects for team isolation
+- 2 workspaces for environment isolation (dev-staging + production)
 - RBAC with custom roles (data-scientist, ml-engineer, platform-admin)
 - Pipeline snapshots for immutable deployments
-- Cross-project visibility for platform team
+- Cross-workspace model promotion with metadata preservation
+- ZenML version upgrade isolation
 
 **Architecture**:
 ```
-Workspace: "enterprise-ml"
-├── Project: risk-models (Team A)
-├── Project: fraud-detection (Team B)
-└── Project: platform-shared (Platform team)
+Organization: Enterprise MLOps
+├── Workspace: enterprise-dev-staging (can upgrade ZenML freely)
+│   ├── Project: cancer-detection
+│   ├── Stack: dev-stack (local, fast iteration)
+│   └── Stack: staging-stack (Vertex AI, production-like)
+│
+└── Workspace: enterprise-production (upgrade cautiously)
+    ├── Project: cancer-detection
+    └── Stack: gcp-stack (Vertex AI, production)
+```
+
+**Cross-Workspace Promotion**:
+```bash
+# Train in dev-staging
+zenml login enterprise-dev-staging
+python run.py --pipeline training
+
+# Promote to production
+python scripts/promote_cross_workspace.py \
+  --model breast_cancer_classifier \
+  --source-workspace enterprise-dev-staging \
+  --dest-workspace enterprise-production
 ```
 
 ### For OSS Users (Secondary)
 
 **Show**:
-- Single project with environment stacks
-- Stack-based resource isolation (dev/staging/prod)
-- GitHub-based access control
-- Hook-based governance
+- 2 separate ZenML servers (one for dev-staging, one for production)
+- Same project/stack names in each server
+- Same cross-workspace promotion script
+- Same GitOps workflows
 
 **Architecture**:
 ```
-Project: "default"
-├── Stack: local-dev (local)
-├── Stack: staging (GCP staging project)
-└── Stack: production (GCP production project)
+ZenML Server: dev-staging.company.com
+├── Project: cancer-detection
+├── Stack: dev-stack
+└── Stack: staging-stack
+
+ZenML Server: production.company.com
+├── Project: cancer-detection
+└── Stack: gcp-stack
 ```
 
 ## What Works for Both
@@ -262,8 +308,10 @@ All core patterns work identically:
 - ✅ Hook-based governance
 - ✅ Model Control Plane
 - ✅ GitOps workflows
-- ✅ Multi-environment promotion (via stacks for OSS, projects for Pro)
-- ✅ Lineage tracking
+- ✅ Cross-workspace promotion (2 workspaces for Pro, 2 servers for OSS)
+- ✅ Training lineage (in dev-staging workspace)
+- ✅ Inference lineage (in production workspace)
+- ✅ Metadata-based audit trails (preserved across workspaces)
 - ✅ Dynamic preprocessing
 
 ## Documentation Strategy
@@ -305,11 +353,16 @@ All core patterns work identically:
 
 **Point**: "Platform team enforces governance automatically via hooks. Data scientists never see it - it just works."
 
-### 3. Multi-Environment Promotion
+### 3. Multi-Environment Promotion (Cross-Workspace)
 
-**Show**: `scripts/promote_model.py` and `.github/workflows/promote-production.yml`
+**Show**: `scripts/promote_cross_workspace.py` and `.github/workflows/promote-to-production.yml`
 
-**Point**: "This solves your #1 pain point. Models promote through dev → staging → production with validation gates and complete audit trails."
+**Point**: "This solves your #1 pain point AND ZenML version isolation. Train in dev-staging workspace with full lineage. Promote to production workspace with metadata preservation. Upgrade ZenML versions independently - test in dev-staging first, then production."
+
+**Lineage Story**:
+- Training lineage: Fully preserved in dev-staging workspace
+- Production lineage: Inference runs show model → predictions
+- Audit trail: Production model metadata links back to source workspace, version, git commit
 
 ### 4. GitOps Integration
 
@@ -372,9 +425,9 @@ def train_with_gpu():
 
 **Answer**: ZenML compiles pipeline to DAG before execution. Step outputs are artifacts, not Python values. Put conditional logic inside steps.
 
-### Issue: "Why single workspace instead of multiple?"
+### Issue: "Why 2 workspaces instead of 1 or 3?"
 
-**Answer**: Multiple workspaces create physical isolation - models can't be promoted across workspaces. This breaks the multi-environment promotion use case. Use single workspace with projects for team isolation.
+**Answer**: 2 workspaces (dev-staging + production) provides ZenML version upgrade isolation while preserving maximum lineage. Training lineage is fully preserved in dev-staging. Production has inference lineage plus metadata linking back to source. Only one lineage break at the staging→production boundary. Single workspace risks production disruption during upgrades; 3 workspaces creates two lineage breaks.
 
 ### Issue: "Why not mix governance into ML code?"
 
@@ -410,7 +463,9 @@ def train_with_gpu():
 - Never use pipeline-level conditionals (put logic in steps)
 - Use hooks for governance, not step decorators
 - Reference Model Control Plane as single source of truth
-- Keep environment isolation via stacks, not projects/workspaces
+- Use 2 workspaces: dev-staging (full lineage) + production (inference lineage)
+- Cross-workspace promotion preserves metadata for audit trails
+- Same project name (`cancer-detection`) in both workspaces for consistency
 
 ## Files to Never Modify (Core Patterns)
 
@@ -421,8 +476,8 @@ These demonstrate key patterns - changing them breaks the demo:
 - ✋ `src/pipelines/champion_challenger.py` - Shows A/B model comparison pattern
 - ✋ `src/pipelines/realtime_inference.py` - Shows Pipeline Deployments for serving
 - ✋ `governance/hooks/mlflow_hook.py` - Shows hook-based governance
-- ✋ `scripts/promote_model.py` - Shows promotion with validation gates
-- ✋ `.github/workflows/promote-production.yml` - Shows GitOps pattern
+- ✋ `scripts/promote_cross_workspace.py` - Shows cross-workspace promotion with metadata
+- ✋ `.github/workflows/promote-to-production.yml` - Shows cross-workspace GitOps pattern
 
 ## What Can Be Extended
 
@@ -505,10 +560,11 @@ If asked "Why X?" - the answer is usually:
 
 1. **"Why this structure?"** → Separation of concerns for enterprise teams
 2. **"Why hooks?"** → Platform controls governance without touching ML code
-3. **"Why single workspace?"** → Model promotion (enterprise customers' #1 pain point)
+3. **"Why 2 workspaces?"** → ZenML version upgrade isolation while preserving maximum lineage
 4. **"Why Model Control Plane?"** → Single source of truth for audit trails
 5. **"Why GitOps?"** → Production deployment pattern for enterprises
 6. **"Why no pipeline conditionals?"** → ZenML compiles to DAG before execution
+7. **"Why cross-workspace promotion?"** → Models validated in staging, then exported to production with metadata
 
 ## Summary
 

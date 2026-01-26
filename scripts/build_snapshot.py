@@ -26,12 +26,20 @@ Pipeline snapshots are a ZenML Pro feature that enables:
 This script creates snapshots for staging and production environments,
 typically called from CI/CD (GitHub Actions).
 
-Usage:
-    # Staging (auto-run)
-    python scripts/build_snapshot.py --environment staging --stack my-stack --run
+2-Workspace Architecture:
+- enterprise-dev-staging: Create training + staging inference snapshots
+- enterprise-production: Create production inference snapshots
 
-    # Production (manual trigger later)
-    python scripts/build_snapshot.py --environment production --stack my-stack
+NOTE: Connect to the appropriate workspace before running this script:
+    zenml login enterprise-dev-staging --api-key $ZENML_DEV_STAGING_API_KEY
+    zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
+
+Usage:
+    # Staging training (in enterprise-dev-staging workspace)
+    python scripts/build_snapshot.py --environment staging --stack staging-stack --run
+
+    # Production inference (in enterprise-production workspace)
+    python scripts/build_snapshot.py --environment production --stack gcp-stack --pipeline batch_inference
 """
 
 import os

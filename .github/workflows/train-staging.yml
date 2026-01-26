@@ -1,9 +1,11 @@
-name: Training Pipeline (Staging)
+name: Train Model (Dev-Staging)
+
+# This workflow trains models in the enterprise-dev-staging workspace.
+# Part of the 2-workspace architecture for ZenML version upgrade isolation.
 
 on:
   pull_request:
     branches:
-      - staging
       - main
     paths:
       - 'src/**'
@@ -19,11 +21,10 @@ jobs:
   train:
     runs-on: ubuntu-latest
     env:
-      # Configure for your ZenML deployment
-      ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
-      ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
-      ZENML_PROJECT: ${{ secrets.ZENML_PROJECT || 'default' }}
-      ZENML_STAGING_STACK: ${{ secrets.ZENML_STAGING_STACK || 'default' }}
+      # 2-Workspace Architecture: Connect to dev-staging workspace
+      ZENML_DEV_STAGING_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
+      ZENML_PROJECT: cancer-detection
+      ZENML_STACK: staging-stack
       # Auto-populated from GitHub
       ZENML_GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
       ZENML_GITHUB_PR_URL: ${{ github.event.pull_request.html_url }}
@@ -46,13 +47,12 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      - name: Connect to ZenML
+      # Connect to dev-staging workspace (2-workspace architecture)
+      - name: Connect to dev-staging workspace
         run: |
-          zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+          zenml login enterprise-dev-staging --api-key $ZENML_DEV_STAGING_API_KEY
           zenml project set $ZENML_PROJECT
-
-      - name: Set stack
-        run: zenml stack set $ZENML_STAGING_STACK
+          zenml stack set $ZENML_STACK
 
       # ZenML Pro: Create snapshot AND run
       - name: Build and run snapshot (Pro)
@@ -61,7 +61,7 @@ jobs:
         run: |
           python scripts/build_snapshot.py \
             --environment staging \
-            --stack $ZENML_STAGING_STACK \
+            --stack $ZENML_STACK \
             --run
 
       # ZenML OSS fallback: Direct execution
@@ -69,7 +69,7 @@ jobs:
         if: steps.pro_build.outcome == 'failure'
         run: |
           echo "Snapshot creation failed (OSS?), running pipeline directly..."
-          python run.py --pipeline training
+          python run.py --pipeline training --environment staging
 
       - name: Comment on PR
         if: success()
@@ -80,5 +80,10 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '✅ Training pipeline completed successfully! Check the ZenML dashboard for results.'
+              body: `✅ Training pipeline completed in **enterprise-dev-staging** workspace!
+
+              **Next steps:**
+              1. Review model metrics in the [ZenML Dashboard](https://cloud.zenml.io)
+              2. Merge PR to trigger staging validation
+              3. Create a release to promote to production`
             })

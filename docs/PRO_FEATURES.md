@@ -200,57 +200,141 @@ for log in audit_logs:
 
 ## Architecture for HCA's Requirements
 
-Based on HCA's hub-and-spoke architecture needs:
+Based on HCA's hub-and-spoke architecture needs, we recommend a **2-Workspace Architecture** that provides ZenML version upgrade isolation while maintaining promotion workflows.
 
-### Option 1: Single Workspace with Projects (Recommended)
-
-```
-ZenML Pro Workspace
-├── Project: hca-platform (Platform Team)
-│   ├── Shared governance components
-│   ├── Base Docker images
-│   └── Cross-project monitoring
-│
-├── Project: hca-risk-models (Risk Team)
-│   └── Uses platform stacks, isolated models
-│
-├── Project: hca-patient-outcomes (Outcomes Team)
-│   └── Uses platform stacks, isolated models
-│
-└── Stacks (shared across projects):
-    ├── gcp-staging (Vertex AI + GCS in staging project)
-    └── gcp-production (Vertex AI + GCS in prod project)
-```
-
-**Benefits**:
-- Model promotion works across projects (same workspace)
-- Platform team has visibility into all projects
-- Teams isolated via RBAC
-- Single source of truth for models
-
-### Option 2: Consolidated GCP Projects
-
-If consolidating from hub-and-spoke to central projects:
+### 2-Workspace Architecture (Recommended)
 
 ```
-GCP Projects:
-├── hca-ml-staging
-│   └── ZenML Stack: gcp-staging
-│       ├── Vertex AI Pipelines (orchestrator)
-│       ├── GCS bucket (artifacts)
-│       └── Artifact Registry (containers)
+Organization: Enterprise MLOps
 │
-└── hca-ml-production
-    └── ZenML Stack: gcp-production
-        ├── Vertex AI Pipelines (orchestrator)
-        ├── GCS bucket (artifacts)
-        └── Artifact Registry (containers)
-
-ZenML Pro provides:
-- RBAC for team isolation within shared GCP projects
-- Cost attribution via pipeline/project tags
-- Audit trail for compliance
+├── Workspace: enterprise-dev-staging
+│   │   # Development + Staging (full lineage)
+│   │
+│   ├── Project: cancer-detection
+│   │   ├── Stack: dev-stack (local orchestrator, fast iteration)
+│   │   ├── Stack: staging-stack (Vertex AI, production-like testing)
+│   │   ├── Training pipeline runs (FULL LINEAGE)
+│   │   ├── Model versions (none → staging stages)
+│   │   └── Test batch inference runs
+│   │
+│   └── Stacks registered to GCP:
+│       ├── dev-stack → local orchestrator
+│       └── staging-stack → Vertex AI (staging resources)
+│
+└── Workspace: enterprise-production
+    │   # Production only (imported models, inference lineage)
+    │
+    ├── Project: cancer-detection
+    │   ├── Stack: gcp-stack (Vertex AI, production)
+    │   ├── Imported model versions (production stage)
+    │   ├── Batch inference pipeline runs
+    │   └── Real-time inference deployments
+    │
+    └── Cross-workspace lineage via metadata:
+        └── Links back to source workspace, version, pipeline run
 ```
+
+### Why 2 Workspaces?
+
+| Benefit | How It Works |
+|---------|--------------|
+| **ZenML Version Isolation** | Upgrade dev-staging first, test thoroughly, then production |
+| **Full Training Lineage** | All training artifacts and lineage preserved in dev-staging |
+| **Production Stability** | Production workspace isolated from development changes |
+| **Cross-Workspace Promotion** | Export/import with rich metadata preserves audit trail |
+
+### Cross-Workspace Model Promotion
+
+Models promote from dev-staging to production via a shared GCS bucket:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GitOps Flow (GitHub Actions)                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+           ┌──────────────────┴──────────────────┐
+           ▼                                      ▼
+┌─────────────────────────┐            ┌─────────────────────────┐
+│  enterprise-dev-staging │            │  enterprise-production  │
+│                         │            │                         │
+│  Training Pipeline      │            │  Import Pipeline        │
+│  └─> Model v1          │            │  └─> Model v1          │
+│      (staging stage)    │            │      (production stage) │
+│                         │   Export   │                         │
+│  Full Lineage:          │ ────────> │  Metadata Links:        │
+│  - Data artifacts       │   via     │  - Source workspace     │
+│  - Feature pipeline     │   shared  │  - Source version       │
+│  - Training metrics     │   GCS     │  - Pipeline run URL     │
+│  - Git commit           │  bucket   │  - All metrics          │
+└─────────────────────────┘            └─────────────────────────┘
+```
+
+### Promotion Script
+
+```bash
+# Export from dev-staging (in GitHub Actions or manually)
+python scripts/promote_cross_workspace.py \
+    --model breast_cancer_classifier \
+    --source-workspace enterprise-dev-staging \
+    --source-stage staging \
+    --export-only
+
+# Import to production (requires approval)
+python scripts/promote_cross_workspace.py \
+    --model breast_cancer_classifier \
+    --dest-workspace enterprise-production \
+    --import-from gs://zenml-core-model-exchange/exports/... \
+    --dest-stage production
+```
+
+### GCP Infrastructure
+
+Single GCP project with label-based cost tracking:
+
+```
+GCP Project: zenml-core
+│
+├── Dev-Staging Resources (label: environment=dev-staging)
+│   ├── GCS: zenml-dev-staging-artifacts
+│   ├── Artifact Registry: zenml-dev-staging
+│   └── Vertex AI Pipelines (staging workloads)
+│
+├── Production Resources (label: environment=production)
+│   ├── GCS: zenml-production-artifacts
+│   ├── Artifact Registry: zenml-production
+│   └── Vertex AI Pipelines (production workloads)
+│
+└── Shared Resources (label: purpose=cross-workspace)
+    └── GCS: zenml-core-model-exchange
+        └── Used for model export/import between workspaces
+```
+
+### ZenML Pro Features Used
+
+| Feature | How We Use It |
+|---------|---------------|
+| **Multiple Workspaces** | Separate dev-staging and production |
+| **Projects** | Team isolation within each workspace |
+| **Pipeline Snapshots** | Immutable deployments in production |
+| **RBAC** | Control who can promote to production |
+| **Audit Logs** | Track all promotions and deployments |
+
+### Alternative: Single Workspace (Simpler, Less Isolation)
+
+For teams that don't need ZenML version isolation:
+
+```
+ZenML Pro Workspace: enterprise-ml
+├── Project: cancer-detection
+│   ├── Stack: dev-stack (local)
+│   ├── Stack: staging-stack (Vertex AI staging)
+│   └── Stack: gcp-stack (Vertex AI production)
+│
+└── Model promotion via stages (within workspace):
+    └── none → staging → production
+```
+
+**Trade-off**: Simpler promotion, but ZenML upgrades affect all environments simultaneously.
 
 ## Next Steps
 

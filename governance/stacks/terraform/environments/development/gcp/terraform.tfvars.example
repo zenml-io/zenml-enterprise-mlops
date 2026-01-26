@@ -1,0 +1,43 @@
+# Example terraform.tfvars for Development Stack
+# Copy this to terraform.tfvars and customize for your environment
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # Edit values below
+#   terraform init
+#   terraform plan
+#   terraform apply
+
+# =============================================================================
+# Required: GCP Project
+# =============================================================================
+
+project_id = "zenml-core"  # Your GCP project ID
+
+# =============================================================================
+# Stack Configuration
+# =============================================================================
+
+region          = "us-central1"
+stack_name      = "dev-stack"
+deployment_name = "zenml-development"
+
+# =============================================================================
+# Cost Tracking
+# =============================================================================
+
+team_name   = "data-science"
+cost_center = "ml-platform"
+
+labels = {
+  owner       = "platform-team"
+  purpose     = "ml-development"
+  workspace   = "enterprise-dev-staging"
+}
+
+# =============================================================================
+# ZenML Connection (Set via environment variables)
+# =============================================================================
+# Before running terraform, set:
+#   export ZENML_SERVER_URL="https://enterprise-dev-staging.cloud.zenml.io"
+#   export ZENML_API_KEY="your-api-key"

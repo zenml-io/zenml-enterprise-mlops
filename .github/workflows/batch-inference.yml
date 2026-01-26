@@ -1,16 +1,27 @@
 name: Scheduled Batch Inference
 
+# This workflow runs scheduled batch inference in the enterprise-production workspace.
+# Part of the 2-workspace architecture for ZenML version upgrade isolation.
+#
+# The production model is imported from enterprise-dev-staging via the
+# promote-production workflow.
+
 on:
   schedule:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
 
   workflow_dispatch:
-    # Allow manual triggering
+    # Allow manual triggering for testing or ad-hoc runs
 
 jobs:
-  batch_inference:
+  batch-inference:
     runs-on: ubuntu-latest
+    env:
+      # 2-Workspace Architecture: Connect to production workspace
+      ZENML_PRODUCTION_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+      ZENML_PROJECT: cancer-detection
+      ZENML_STACK: gcp-stack
 
     steps:
       - name: Checkout code
@@ -27,21 +38,29 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      - name: Connect to ZenML
-        env:
-          ZENML_STORE_URL: ${{ secrets.ZENML_STORE_URL }}
-          ZENML_STORE_API_KEY: ${{ secrets.ZENML_STORE_API_KEY }}
+      # Connect to production workspace (where production models live)
+      - name: Connect to production workspace
         run: |
-          zenml connect --url $ZENML_STORE_URL --api-key $ZENML_STORE_API_KEY
+          zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
+          zenml project set $ZENML_PROJECT
+          zenml stack set $ZENML_STACK
 
-      - name: Set active stack
+      # ZenML Pro: Run from snapshot (preferred)
+      - name: Run batch inference from snapshot (Pro)
+        id: pro_run
+        continue-on-error: true
         run: |
-          # Use production stack
-          zenml stack set default
+          # Try to run from existing snapshot
+          zenml pipeline runs start batch_inference_pipeline \
+            --snapshot latest \
+            --config configs/inference_production.yaml 2>/dev/null || exit 1
 
-      - name: Run batch inference
+      # ZenML OSS fallback: Direct execution
+      - name: Run batch inference directly (OSS)
+        if: steps.pro_run.outcome == 'failure'
         run: |
-          python run.py --pipeline batch_inference
+          echo "Snapshot run failed (OSS?), running pipeline directly..."
+          python run.py --pipeline batch_inference --environment production
 
       - name: Create inference summary
         if: success()
@@ -49,9 +68,10 @@ jobs:
           echo "## 📊 Batch Inference Completed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
-          echo "**Model:** breast_cancer_classifier (production)" >> $GITHUB_STEP_SUMMARY
+          echo "**Workspace:** enterprise-production" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** breast_cancer_classifier (production stage)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the ZenML dashboard for prediction results." >> $GITHUB_STEP_SUMMARY
+          echo "Check the [ZenML Dashboard](https://cloud.zenml.io) for prediction results." >> $GITHUB_STEP_SUMMARY
 
       - name: Notify on failure
         if: failure()
@@ -60,3 +80,12 @@ jobs:
           script: |
             // In production, send alert to Slack/PagerDuty/etc.
             console.log('Batch inference failed - alerts would be sent here')
+
+            // Create issue for tracking
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Batch Inference Failed - ${new Date().toISOString().split('T')[0]}`,
+              body: `## Batch Inference Failure\n\n**Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n**Workspace:** enterprise-production\n\nPlease investigate and resolve.`,
+              labels: ['incident', 'batch-inference']
+            });

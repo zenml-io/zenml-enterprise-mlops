@@ -15,19 +15,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Model promotion script for GitOps workflows.
+"""Model promotion script for WITHIN-WORKSPACE stage transitions.
 
-This script promotes models between stages based on validation criteria.
-Typically triggered by GitHub Actions on PR merge or release creation.
+This script promotes models between stages (none → staging → production) WITHIN
+a single ZenML workspace. This is the appropriate script when:
+- You're using a single-workspace architecture (OSS or simpler Pro setup)
+- You're promoting within enterprise-dev-staging (e.g., none → staging)
+
+For CROSS-WORKSPACE promotion (enterprise-dev-staging → enterprise-production),
+use scripts/promote_cross_workspace.py instead. That script:
+- Exports models to shared GCS bucket
+- Imports with full metadata preservation
+- Maintains audit trail across workspace boundary
+
+2-Workspace Architecture:
+- enterprise-dev-staging: Use THIS script (none → staging)
+- enterprise-production: Use promote_cross_workspace.py (import from dev-staging)
 
 Usage:
-    # Promote latest model to staging
+    # Promote latest model to staging (within dev-staging workspace)
     python scripts/promote_model.py --model breast_cancer_classifier --to-stage staging
 
-    # Promote specific version to production
-    python scripts/promote_model.py --model breast_cancer_classifier --version 1.2.3 --to-stage production
+    # Promote specific version to staging
+    python scripts/promote_model.py --model breast_cancer_classifier --version 1.2.3 --to-stage staging
 
-    # Promote latest staging to production
+    # Promote from staging stage (still within same workspace)
     python scripts/promote_model.py --model breast_cancer_classifier --from-stage staging --to-stage production
 """
 

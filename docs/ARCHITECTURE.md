@@ -93,95 +93,153 @@ Multiple layers of validation and security:
 | **Audit Logs** | Basic | Comprehensive |
 | **SSO/SAML** | ❌ | ✅ |
 
-### Single Workspace Architecture (Recommended)
+### 2-Workspace Architecture (Recommended)
 
-For most enterprises, use a **single workspace with multiple projects** (Pro) or **single project with environment stacks** (OSS):
+For enterprise deployments, use **2 workspaces** (Pro) or **2 separate ZenML servers** (OSS) to enable ZenML version upgrade isolation while preserving maximum lineage:
 
 ```
-ZenML Instance
-└── Workspace: "enterprise-ml"
-    ├── Project: "healthcare-models" (Pro) / "default" (OSS)
-    │   ├── Stacks: dev, staging, production
-    │   ├── Models: breast_cancer_classifier
-    │   └── Pipelines: training, batch_inference
-    │
-    ├── Project: "fraud-detection" (Pro only)
-    │   ├── Stacks: dev, staging, production
-    │   └── Models: transaction_classifier
-    │
-    └── Project: "platform-shared" (Pro only)
-        └── Governance: hooks, validation steps, base images
+Organization: Enterprise MLOps
+│
+├── Workspace: enterprise-dev-staging (can upgrade ZenML freely)
+│   ├── Project: cancer-detection
+│   ├── Stack: dev-stack (local orchestrator, fast iteration)
+│   ├── Stack: staging-stack (Vertex AI, production-like testing)
+│   ├── Training pipeline runs (FULL LINEAGE)
+│   ├── Model versions (none → staging stages)
+│   └── Test batch inference runs (staging validation)
+│
+└── Workspace: enterprise-production (upgrade cautiously)
+    ├── Project: cancer-detection
+    ├── Stack: gcp-stack (Vertex AI, production)
+    ├── Imported model versions (production stage)
+    ├── Batch inference pipeline snapshots
+    └── Production batch inference runs (INFERENCE LINEAGE)
 ```
 
 **Key Architectural Decisions**:
 
-1. **Single Workspace** (not multiple workspaces)
-   - Enables cross-project model visibility
-   - Supports model promotion workflows (workspace isolation would break this)
-   - Allows shared infrastructure and governance components
-   - Matches the multi-environment promotion pattern in this template
+1. **2 Workspaces for Environment Isolation** (not 1, not 3)
+   - Enables ZenML version upgrade isolation (test in dev-staging first)
+   - Preserves full training lineage in dev-staging workspace
+   - Preserves inference lineage in production workspace
+   - Only ONE lineage break at staging → production boundary
 
-2. **Resource Isolation via Stacks** (not ZenML projects/workspaces)
-   - Each environment (dev/staging/prod) uses separate GCP/AWS projects
-   - Stack isolation provides infrastructure boundaries
-   - Credential separation at cloud provider level
-   - Works identically for OSS and Pro
+2. **Cross-Workspace Model Promotion**
+   - Export model artifacts + metadata from dev-staging
+   - Import into production workspace with rich metadata
+   - Metadata links back to source workspace, version, git commit
+   - Audit trail preserved via metadata (not visual lineage)
 
-3. **Projects for Team Isolation** (Pro only)
-   - Separate projects per team/department
-   - RBAC controls access within projects
-   - Shared platform components in dedicated project
-   - OSS users use single "default" project with environment stacks
+3. **Same Project/Stack Names in Both Workspaces**
+   - Project: `cancer-detection` (same in both)
+   - Consistent naming reduces confusion
+   - Pipelines reference models by stage, not workspace
 
 ### Design Rationale
 
-**Why single workspace?**
-- Solves multi-environment model promotion (HCA's #1 pain point)
-- Platform team needs visibility across all teams
-- Shared governance components (hooks, base images, validation steps)
-- Simpler credential and access management
+**Why 2 workspaces (not 1)?**
+- ZenML version upgrades in single workspace affect all environments
+- Production disruption risk during upgrades
+- 2 workspaces enable: upgrade dev-staging → test → upgrade production
 
-**Why not multiple workspaces?**
-- Workspaces create physical isolation
-- Models cannot be promoted across workspaces
-- Breaks the dev → staging → production workflow
-- Only use multiple workspaces for hard regulatory boundaries (e.g., HIPAA vs non-HIPAA data)
+**Why 2 workspaces (not 3)?**
+- 3 workspaces creates TWO lineage breaks instead of one
+- Staging validation loses connection to training lineage
+- More complex promotion workflow with no benefit
 
-### Basic Setup (OSS & Pro Single-Team)
+**Lineage Preservation Strategy**:
+```
+Dev-Staging Workspace:
+├── Training Pipeline Run (FULL LINEAGE)
+│   ├── load_data() → dataset
+│   ├── preprocess() → features
+│   ├── train() → model
+│   └── evaluate() → metrics
+└── Model Version v5 → staging stage
 
-```bash
-# Install ZenML
-pip install "zenml[server]>=0.92.0"
+Cross-Workspace Promotion:
+├── Export: model artifacts + metadata
+└── Metadata: source_workspace, source_version, metrics, git_commit
 
-# Initialize
-zenml init
-
-# Start local server (OSS) or connect to Pro
-zenml login  # OSS
-zenml connect --url https://your-org.zenml.io  # Pro
-
-# Configure environment stacks
-zenml stack register local-dev --orchestrator local --artifact-store local
-zenml stack register staging --orchestrator vertex-staging --artifact-store gcs-staging
-zenml stack register production --orchestrator vertex-production --artifact-store gcs-production
+Production Workspace:
+├── Imported Model Version v1 (production stage)
+│   └── Metadata links to enterprise-dev-staging/v5
+├── Batch Inference Run (INFERENCE LINEAGE)
+│   ├── load_data() → new_patients
+│   ├── load_model() → model v1
+│   └── predict() → predictions
+└── Complete audit trail via metadata
 ```
 
-### Advanced Multi-Team Setup (Pro Only)
+### Basic Setup (OSS)
+
+For OSS, deploy 2 separate ZenML servers:
 
 ```bash
-# Create projects per team
-zenml project create healthcare-models --description "Healthcare ML models"
-zenml project create fraud-detection --description "Fraud detection models"
-zenml project create platform-shared --description "Shared governance components"
+# Server 1: Development + Staging
+# Deploy ZenML server (e.g., on GCP Cloud Run)
+# Connect to it:
+zenml connect --url https://dev-staging.yourcompany.com
 
-# Create RBAC roles
+# Create project
+zenml project create cancer-detection
+
+# Create stacks
+zenml stack register dev-stack --orchestrator local --artifact-store gcs-dev
+zenml stack register staging-stack --orchestrator vertex-staging --artifact-store gcs-staging
+
+# Server 2: Production
+# Deploy separate ZenML server
+zenml connect --url https://production.yourcompany.com
+
+# Create same project name
+zenml project create cancer-detection
+
+# Create production stack
+zenml stack register gcp-stack --orchestrator vertex-prod --artifact-store gcs-prod
+```
+
+### Pro Setup (Recommended)
+
+For ZenML Pro, use 2 workspaces within your organization:
+
+```bash
+# Workspace 1: Development + Staging
+zenml login enterprise-dev-staging
+zenml project create cancer-detection
+
+# Create stacks via Terraform (see governance/stacks/terraform/)
+zenml stack list
+# dev-stack, staging-stack
+
+# Workspace 2: Production
+zenml login enterprise-production
+zenml project create cancer-detection
+
+zenml stack list
+# gcp-stack
+
+# Configure RBAC (Pro)
 zenml role create data-scientist --permissions "read:model,write:model,execute:pipeline"
-zenml role create ml-engineer --permissions "read:stack,write:stack,admin:pipeline"
 zenml role create platform-admin --permissions "admin:*"
+```
 
-# Assign users to projects
-zenml project assign-user healthcare-models --user alice@company.com --role data-scientist
-zenml project assign-user platform-shared --user bob@company.com --role platform-admin
+### Cross-Workspace Promotion
+
+```bash
+# Train in dev-staging
+zenml login enterprise-dev-staging
+zenml project set cancer-detection
+zenml stack set staging-stack
+python run.py --pipeline training
+
+# Promote to production
+python scripts/promote_cross_workspace.py \
+  --model breast_cancer_classifier \
+  --source-workspace enterprise-dev-staging \
+  --dest-workspace enterprise-production \
+  --source-stage staging \
+  --dest-stage production
 ```
 
 ## Repository Structure
@@ -285,54 +343,62 @@ zenml-enterprise-mlops/
 
 ## Stack Organization
 
-### Stack Hierarchy
+### Stack Hierarchy (2-Workspace Model)
 
 ```
-Stacks
-├── Local Development
-│   ├── local-dev (OSS: default, Pro: per-project)
-│   └── Local orchestrator + local artifact store
+enterprise-dev-staging workspace
+├── dev-stack
+│   ├── Orchestrator: local (fast iteration)
+│   ├── Artifact Store: GCS (zenml-core project)
+│   └── Labels: environment=development
 │
-├── Cloud Development
-│   ├── {project}-dev (Pro) or dev (OSS)
-│   └── Cloud orchestrator + cloud storage (isolated by GCP project)
-│
-├── Staging
-│   ├── {project}-staging (Pro) or staging (OSS)
-│   └── Cloud orchestrator + cloud storage + experiment tracker
-│
-└── Production
-    ├── {project}-prod (Pro) or production (OSS)
-    └── Cloud orchestrator + cloud storage + experiment tracker + model registry
+└── staging-stack
+    ├── Orchestrator: Vertex AI (production-like)
+    ├── Artifact Store: GCS (zenml-core project)
+    └── Labels: environment=staging
+
+enterprise-production workspace
+└── gcp-stack
+    ├── Orchestrator: Vertex AI (production)
+    ├── Artifact Store: GCS (zenml-core project)
+    └── Labels: environment=production
 ```
 
 ### Naming Conventions
 
-**Stacks**: `{project}-{environment}` (Pro) or `{environment}` (OSS)
-- Examples: `healthcare-staging`, `fraud-production` (Pro)
-- Examples: `dev`, `staging`, `production` (OSS)
+**Workspaces**: `enterprise-{environment-group}`
+- `enterprise-dev-staging` (development + staging)
+- `enterprise-production` (production only)
+
+**Projects**: Same name in both workspaces
+- `cancer-detection` (consistency across workspaces)
+
+**Stacks**: Environment-specific
+- `dev-stack`, `staging-stack` (in dev-staging workspace)
+- `gcp-stack` (in production workspace)
 
 **Models**: `{purpose}_{type}`
 - Examples: `breast_cancer_classifier`, `diagnosis_classifier`
 
-**Pipelines**: `{purpose}_pipeline`
-- Examples: `training_pipeline`, `batch_inference_pipeline`
-
 ### Resource Isolation
 
-Each environment uses separate cloud projects:
+All environments share one GCP project with label-based cost tracking:
+
 ```
-GCP Projects:
-- my-company-ml-dev       (development)
-- my-company-ml-staging   (staging)
-- my-company-ml-prod      (production)
+GCP Project: zenml-core
+├── Resources labeled: environment=development
+├── Resources labeled: environment=staging
+└── Resources labeled: environment=production
+
+Shared Model Exchange Bucket:
+└── gs://zenml-core-model-exchange (cross-workspace promotion)
 ```
 
 This provides:
-- Infrastructure boundaries
-- Credential separation
-- Cost tracking per environment
-- Independent scaling
+- Simplified credential management (one GCP project)
+- Cost tracking via labels
+- Shared artifact store for model promotion
+- Independent ZenML version upgrades per workspace
 
 ## Access Control & RBAC
 
@@ -411,42 +477,50 @@ All components reference the Model Control Plane:
 - Batch inference loads by stage (e.g., "production")
 - Complete lineage preserved across environments
 
-### Training Flow
+### Training Flow (in enterprise-dev-staging workspace)
 
 ```
 1. Developer creates feature branch
 2. Writes pipeline code in src/
-3. Tests locally with local-dev stack
-4. Creates PR to staging branch
+3. Tests locally with dev-stack
+4. Creates PR to main branch
 5. GitHub Actions triggers:
+   ├─ zenml login enterprise-dev-staging
    ├─ Build pipeline snapshot (Pro)
-   └─ Run training pipeline
-6. Results logged to Model Control Plane
-7. PR review and merge
+   └─ Run training pipeline with staging-stack
+6. Results logged to Model Control Plane (full lineage)
+7. Model set to staging stage
+8. PR review and merge
 ```
 
-### Promotion Flow
+### Promotion Flow (cross-workspace)
 
 ```
-1. Model validated in staging
+1. Model validated in staging (enterprise-dev-staging workspace)
 2. Create GitHub release (e.g., v1.0.0)
 3. GitHub Actions triggers:
-   ├─ Run promotion script
-   ├─ Validate model meets thresholds
+   ├─ Export model from enterprise-dev-staging
+   │   ├─ Artifacts: model, scaler
+   │   └─ Metadata: metrics, git_commit, source_version
+   ├─ Import model to enterprise-production
+   │   ├─ Create new model version
+   │   └─ Log source metadata for audit trail
    └─ Set model stage to "production"
-4. Batch inference picks up new model automatically
+4. Batch inference in production uses new model automatically
 ```
 
-### Batch Inference Flow
+### Batch Inference Flow (in enterprise-production workspace)
 
 ```
-1. Scheduled daily (2 AM UTC)
-2. Load "production" model by stage
-3. Fetch new data from source
-4. Generate predictions
-5. Store results in artifact store
-6. Log metadata to Model Control Plane
-7. Send monitoring metrics
+1. Scheduled daily (6 AM UTC)
+2. GitHub Actions triggers:
+   ├─ zenml login enterprise-production
+   └─ zenml stack set gcp-stack
+3. Load "production" model by stage (from production workspace)
+4. Fetch new data from source
+5. Generate predictions
+6. Store results in artifact store
+7. Log metadata to Model Control Plane (inference lineage)
 ```
 
 ## Security Architecture
@@ -706,6 +780,70 @@ Create a team playbook documenting:
 - Rollback procedures
 - Incident response
 - Contact information
+
+## Cross-Workspace Model Promotion
+
+### How It Works
+
+The 2-workspace architecture requires explicit model promotion across workspace boundaries:
+
+```
+enterprise-dev-staging                    enterprise-production
+┌─────────────────────┐                  ┌─────────────────────┐
+│ Training Pipeline   │                  │ Imported Model      │
+│ ├─ load_data()     │   Export/Import  │ ├─ Artifacts        │
+│ ├─ train_model()   │ ───────────────► │ ├─ Metadata Links   │
+│ └─ Model v5        │                  │ └─ Model v1 (prod)  │
+│    (staging stage) │                  │                     │
+│                     │                  │ Batch Inference     │
+│ Full Lineage ✓     │                  │ ├─ load_model()     │
+└─────────────────────┘                  │ └─ Inference Lineage│
+                                         └─────────────────────┘
+```
+
+### Promotion Script
+
+```bash
+# Export from dev-staging, import to production
+python scripts/promote_cross_workspace.py \
+  --model breast_cancer_classifier \
+  --source-workspace enterprise-dev-staging \
+  --dest-workspace enterprise-production \
+  --source-stage staging \
+  --dest-stage production
+```
+
+### What Gets Preserved
+
+| Data | Where It Lives |
+|------|----------------|
+| Model artifacts (sklearn, scaler) | Copied to production artifact store |
+| Metrics (accuracy, precision, recall) | Stored as metadata in production |
+| Source lineage link | Metadata: `source_workspace`, `source_version`, `source_pipeline_run_id` |
+| Git commit | Metadata: `git_commit` |
+| Training timestamp | Metadata: `training_date` |
+| Promotion history | Metadata: `promotion_chain[]` |
+
+### Audit Trail Query
+
+In production workspace, query the full audit trail:
+```python
+from zenml.client import Client
+
+client = Client()
+model_version = client.get_model_version("breast_cancer_classifier", "production")
+
+# Get source information
+source = model_version.run_metadata.get("source")
+print(f"Trained in: {source['workspace']}")
+print(f"Original version: {source['model_version']}")
+print(f"Git commit: {source['git_commit']}")
+
+# Link to original pipeline run
+print(f"Source run: {source['pipeline_run_url']}")
+```
+
+---
 
 ## Migration Path: OSS → Pro
 

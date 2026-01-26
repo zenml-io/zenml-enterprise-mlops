@@ -1,0 +1,145 @@
+name: Test Batch Inference (Staging)
+
+# This workflow validates batch inference pipeline changes in the staging environment
+# (enterprise-dev-staging workspace) before promotion to production.
+#
+# Part of the 2-workspace architecture for ZenML version upgrade isolation.
+
+on:
+  # Run after training completes successfully
+  workflow_run:
+    workflows: ["Train Model (Dev-Staging)"]
+    types: [completed]
+
+  # Run when inference code changes
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/pipelines/batch_inference.py'
+      - 'src/steps/predictor.py'
+      - 'configs/inference_*.yaml'
+
+  workflow_dispatch:
+    # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-inference:
+    runs-on: ubuntu-latest
+    # Only run if training succeeded or this is a direct trigger
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+    env:
+      # 2-Workspace Architecture: Connect to dev-staging workspace
+      ZENML_DEV_STAGING_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
+      ZENML_PROJECT: cancer-detection
+      ZENML_STACK: staging-stack
+      # Auto-populated from GitHub
+      ZENML_GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      # Connect to dev-staging workspace (where staging models live)
+      - name: Connect to dev-staging workspace
+        run: |
+          zenml login enterprise-dev-staging --api-key $ZENML_DEV_STAGING_API_KEY
+          zenml project set $ZENML_PROJECT
+          zenml stack set $ZENML_STACK
+
+      # Verify staging model exists
+      - name: Verify staging model
+        run: |
+          python -c "
+          from zenml.client import Client
+          client = Client()
+          try:
+              model = client.get_model_version('breast_cancer_classifier', 'staging')
+              print(f'Found staging model: version {model.number}')
+              print(f'Created: {model.created}')
+          except Exception as e:
+              print(f'No staging model found: {e}')
+              print('This is expected if training has not promoted to staging yet.')
+          "
+
+      # ZenML Pro: Build and run snapshot
+      - name: Build and run staging inference snapshot (Pro)
+        id: pro_build
+        continue-on-error: true
+        run: |
+          python scripts/build_snapshot.py \
+            --pipeline batch_inference \
+            --environment staging \
+            --stack $ZENML_STACK \
+            --run
+
+      # ZenML OSS fallback: Direct execution
+      - name: Run inference pipeline directly (OSS)
+        if: steps.pro_build.outcome == 'failure'
+        run: |
+          echo "Snapshot creation failed (OSS?), running pipeline directly..."
+          python run.py --pipeline batch_inference --environment staging
+
+      - name: Create test summary
+        if: success()
+        run: |
+          echo "## 🧪 Staging Inference Test Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workspace:** enterprise-dev-staging" >> $GITHUB_STEP_SUMMARY
+          echo "**Stack:** staging-stack" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** breast_cancer_classifier (staging stage)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Batch inference pipeline validated. Ready for production promotion." >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ **Batch inference test passed in staging!**
+
+              **Workspace:** enterprise-dev-staging
+              **Stack:** staging-stack
+
+              The batch inference pipeline has been validated against the staging model.
+
+              **Next steps:**
+              1. Merge PR to complete staging validation
+              2. Create a release to promote to production`
+            })
+
+      - name: Comment failure on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `❌ **Batch inference test failed in staging!**
+
+              Please check the [workflow logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`
+            })

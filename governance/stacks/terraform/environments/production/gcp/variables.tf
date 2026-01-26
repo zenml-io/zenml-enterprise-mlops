@@ -14,7 +14,7 @@ variable "region" {
 variable "stack_name" {
   description = "Name of the ZenML stack"
   type        = string
-  default     = "gcp-production"
+  default     = "gcp-stack"  # Part of enterprise-production workspace
 }
 
 variable "deployment_name" {

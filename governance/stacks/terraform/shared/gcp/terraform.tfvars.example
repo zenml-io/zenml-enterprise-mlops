@@ -1,0 +1,15 @@
+# Example terraform.tfvars for Shared Model Exchange Bucket
+# Copy to terraform.tfvars and customize
+
+project_id  = "zenml-core"
+region      = "us-central1"
+bucket_name = "zenml-core-model-exchange"
+
+# Retention period for exports (days)
+export_retention_days = 90
+
+# Service accounts (get these from the stack deployments)
+# Run: terraform output service_account_email
+# in the development and production directories
+dev_staging_service_account = ""  # e.g., zenml-development-sa@zenml-core.iam.gserviceaccount.com
+production_service_account  = ""  # e.g., zenml-production-sa@zenml-core.iam.gserviceaccount.com
