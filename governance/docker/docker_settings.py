@@ -45,13 +45,6 @@ from zenml.config import DockerSettings
 # Base Configuration
 # =============================================================================
 
-# Common system packages required across all images
-_BASE_APT_PACKAGES: list[str] = [
-    "git",  # Code repository operations
-    "curl",  # Health checks and API calls
-    "ca-certificates",  # SSL certificate validation
-]
-
 # Environment variables for consistent Python behavior
 _BASE_ENVIRONMENT = {
     "PYTHONUNBUFFERED": "1",  # Disable output buffering for logging
@@ -66,33 +59,31 @@ _BASE_ENVIRONMENT = {
 # =============================================================================
 
 # Minimal base settings - use as foundation for custom configurations
+# No parent_image = use default ZenML image (has ZenML pre-installed)
 BASE_DOCKER_SETTINGS = DockerSettings(
-    python_package_installer="uv",  # Faster than pip
-    apt_packages=_BASE_APT_PACKAGES,
+    python_package_installer="uv",
     environment=_BASE_ENVIRONMENT,
     install_stack_requirements=True,
 )
 
 
 # Standard settings for most ML training pipelines
-# Includes: Python 3.11 slim, MLflow/sklearn integrations, uv installer
+# No parent_image = use default ZenML image (has ZenML pre-installed)
 STANDARD_DOCKER_SETTINGS = DockerSettings(
-    parent_image="python:3.11-slim",
     python_package_installer="uv",
-    apt_packages=_BASE_APT_PACKAGES,
     environment=_BASE_ENVIRONMENT,
-    required_integrations=["mlflow", "sklearn"],
+    required_integrations=["sklearn"],
     install_stack_requirements=True,
 )
 
 
 # GPU-enabled settings for deep learning workloads
-# Includes: PyTorch with CUDA 11.8, cuDNN, MLflow, OpenCV dependencies
+# Includes: PyTorch with CUDA 11.8, cuDNN, OpenCV dependencies
 GPU_DOCKER_SETTINGS = DockerSettings(
     parent_image="pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime",
     python_package_installer="uv",
+    python_package_installer_args={"system": None},  # None = flag without value (--system)
     apt_packages=[
-        *_BASE_APT_PACKAGES,
         "libsm6",  # OpenCV dependencies
         "libxext6",
         "libgl1-mesa-glx",
@@ -102,17 +93,16 @@ GPU_DOCKER_SETTINGS = DockerSettings(
         "CUDA_VISIBLE_DEVICES": "0",  # Default to first GPU
         "TORCH_CUDA_ARCH_LIST": "7.0 7.5 8.0 8.6",  # Common GPU architectures
     },
-    required_integrations=["mlflow", "pytorch"],
+    required_integrations=["pytorch"],
     install_stack_requirements=True,
 )
 
 
 # Minimal settings for quick iteration and testing
 # Use for: data preprocessing, feature engineering, lightweight inference
+# No parent_image = use default ZenML image (has ZenML pre-installed)
 LIGHTWEIGHT_DOCKER_SETTINGS = DockerSettings(
-    parent_image="python:3.11-slim",
     python_package_installer="uv",
-    apt_packages=_BASE_APT_PACKAGES,
     environment=_BASE_ENVIRONMENT,
     # No required_integrations - install only what's needed
     install_stack_requirements=True,
@@ -177,11 +167,11 @@ def get_docker_settings(
     base_settings = base_configs[base]
 
     # Build merged configurations
-    apt_packages = list(base_settings.apt_packages)
+    apt_packages = list(base_settings.apt_packages or [])
     if extra_apt_packages:
         apt_packages.extend(extra_apt_packages)
 
-    integrations = list(base_settings.required_integrations)
+    integrations = list(base_settings.required_integrations or [])
     if extra_integrations:
         integrations.extend(extra_integrations)
 
@@ -200,12 +190,32 @@ def get_docker_settings(
     if extra_environment:
         environment.update(extra_environment)
 
-    return DockerSettings(
-        parent_image=parent_image or base_settings.parent_image,
-        python_package_installer=base_settings.python_package_installer,
-        apt_packages=apt_packages,
-        environment=environment,
-        required_integrations=integrations,
-        requirements=requirements,
-        install_stack_requirements=base_settings.install_stack_requirements,
-    )
+    # Build kwargs for DockerSettings
+    kwargs = {
+        "python_package_installer": "uv",
+        "environment": environment,
+        "install_stack_requirements": base_settings.install_stack_requirements,
+    }
+
+    # Only set parent_image if explicitly provided or base has one
+    if parent_image:
+        kwargs["parent_image"] = parent_image
+        # Custom images without venv need --system flag
+        kwargs["python_package_installer_args"] = {"system": None}
+    elif base_settings.parent_image:
+        kwargs["parent_image"] = base_settings.parent_image
+        kwargs["python_package_installer_args"] = {"system": None}
+
+    # Only include apt_packages if there are any
+    if apt_packages:
+        kwargs["apt_packages"] = apt_packages
+
+    # Only include required_integrations if there are any
+    if integrations:
+        kwargs["required_integrations"] = integrations
+
+    # Only include requirements if there are any
+    if requirements:
+        kwargs["requirements"] = requirements
+
+    return DockerSettings(**kwargs)

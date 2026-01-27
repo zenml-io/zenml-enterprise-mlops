@@ -18,7 +18,6 @@
 
 from typing import Annotated
 
-import mlflow
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import (
@@ -30,8 +29,6 @@ from sklearn.metrics import (
 )
 from zenml import log_metadata, step
 from zenml.logger import get_logger
-
-from src.utils import get_experiment_tracker_name
 
 logger = get_logger(__name__)
 
@@ -57,9 +54,6 @@ def evaluate_model(
     """
     logger.info("Evaluating model performance")
 
-    # Get experiment tracker name (evaluated at step runtime, not import time)
-    experiment_tracker_name = get_experiment_tracker_name()
-
     # Make predictions
     y_pred = model.predict(X_test)
     y_pred_proba = model.predict_proba(X_test)[:, 1]
@@ -77,12 +71,6 @@ def evaluate_model(
     logger.info("Model Performance:")
     for metric_name, metric_value in metrics.items():
         logger.info(f"  {metric_name}: {metric_value:.4f}")
-
-    # Log to MLflow if tracker is available
-    if experiment_tracker_name:
-        for metric_name, metric_value in metrics.items():
-            mlflow.log_metric(metric_name, metric_value)
-        logger.info(f"Metrics logged to MLflow tracker: {experiment_tracker_name}")
 
     # Log to ZenML Model Control Plane
     log_metadata(

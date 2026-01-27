@@ -179,29 +179,10 @@ def register_stack(
         except Exception as e:
             logger.warning(f"Container registry already exists or error: {e}")
 
-    # Register MLflow experiment tracker
-    mlflow_name = f"mlflow-{environment}"
-    if environment == "local":
-        mlflow_uri = "http://localhost:5000"
-    else:
-        mlflow_uri = f"https://mlflow-{environment}.your-company.com"
-
-    try:
-        client.create_stack_component(
-            name=mlflow_name,
-            flavor="mlflow",
-            component_type=StackComponentType.EXPERIMENT_TRACKER,
-            configuration={"tracking_uri": mlflow_uri},
-        )
-        logger.info(f"✅ Registered experiment tracker: {mlflow_name}")
-    except Exception as e:
-        logger.warning(f"Experiment tracker already exists or error: {e}")
-
     # Create the stack
     stack_components = {
         "orchestrator": orchestrator_name,
         "artifact_store": artifact_name,
-        "experiment_tracker": mlflow_name,
     }
 
     if cloud != "local":

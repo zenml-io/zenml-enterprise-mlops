@@ -40,8 +40,7 @@ def training_pipeline():
 
 **Includes:**
 - Python 3.11 slim base image
-- MLflow and sklearn integrations
-- Common system packages (git, curl)
+- sklearn integration
 - uv for fast package installation
 
 ### GPU_DOCKER_SETTINGS
@@ -62,7 +61,6 @@ def train_neural_network(data):
 - PyTorch with CUDA 11.8 support
 - cuDNN for optimized operations
 - OpenCV dependencies
-- MLflow integration
 
 ### LIGHTWEIGHT_DOCKER_SETTINGS
 
@@ -162,18 +160,14 @@ def ml_pipeline():
 
 ## YAML Configuration
 
-Define Docker settings in configuration files:
+Define Docker settings in configuration files. See [`configs/`](../../configs/) for environment-specific examples (local, staging, production).
 
 ```yaml
 # config.yaml
 settings:
   docker:
     parent_image: python:3.11-slim
-    apt_packages:
-      - git
-      - curl
     required_integrations:
-      - mlflow
       - sklearn
 
 steps:

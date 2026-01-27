@@ -25,14 +25,6 @@ pip install -r requirements.txt
 echo "🔧 Initializing ZenML..."
 zenml init
 
-# Register local MLflow experiment tracker
-echo "📊 Registering MLflow experiment tracker..."
-zenml experiment-tracker register mlflow_local --flavor=mlflow || echo "MLflow tracker already registered"
-
-# Update default stack with MLflow
-echo "🏗️  Updating stack with MLflow..."
-zenml stack update default -e mlflow_local || echo "Stack already configured"
-
 echo "✅ Setup complete!"
 echo ""
 echo "Next steps:"

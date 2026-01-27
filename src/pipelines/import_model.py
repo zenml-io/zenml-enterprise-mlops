@@ -17,7 +17,7 @@
 """Import model pipeline for cross-workspace promotion.
 
 This pipeline runs in the destination workspace (enterprise-production) to:
-1. Register imported model artifacts
+1. Download and register imported model artifacts from GCS
 2. Preserve lineage metadata from source workspace
 3. Set the appropriate model stage
 
@@ -27,6 +27,7 @@ maintaining audit trail links back to the source workspace.
 
 from typing import Annotated, Optional
 
+import joblib
 from sklearn.base import ClassifierMixin, TransformerMixin
 from zenml import ArtifactConfig, Model, get_step_context, log_metadata, pipeline, step
 from zenml.enums import ArtifactType, ModelStages
@@ -36,51 +37,88 @@ logger = get_logger(__name__)
 
 
 @step
-def register_imported_model(
-    model: ClassifierMixin,
+def download_and_register_model(
+    export_path: str,
     import_metadata: dict,
 ) -> Annotated[
     ClassifierMixin,
     ArtifactConfig(name="sklearn_classifier", artifact_type=ArtifactType.MODEL),
 ]:
-    """Register imported model artifact in destination workspace.
-
-    This step saves the model artifact in the destination workspace's
-    artifact store, creating the start of inference lineage.
+    """Download and register imported model artifact from GCS.
 
     Args:
-        model: The sklearn model to register
+        export_path: GCS path to the export directory
         import_metadata: Metadata from the export manifest
 
     Returns:
         The registered model artifact
     """
+    import tempfile
+    from pathlib import Path
+
+    from google.cloud import storage
+
     source = import_metadata.get("source", {})
     logger.info(
         f"Registering model from {source.get('workspace')} v{source.get('model_version')}"
     )
+
+    # Download model from GCS
+    bucket_name = export_path.replace("gs://", "").split("/")[0]
+    blob_path = "/".join(export_path.replace("gs://", "").split("/")[1:]) + "/model.joblib"
+
+    gcs_client = storage.Client()
+    bucket = gcs_client.bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        local_path = Path(tmpdir) / "model.joblib"
+        blob.download_to_filename(str(local_path))
+        model = joblib.load(local_path)
+
+    logger.info("Downloaded and registered model artifact")
     return model
 
 
 @step
-def register_imported_scaler(
-    scaler: Optional[TransformerMixin],
+def download_and_register_scaler(
+    export_path: str,
+    has_scaler: bool,
 ) -> Annotated[
     Optional[TransformerMixin],
     ArtifactConfig(name="scaler", artifact_type=ArtifactType.MODEL),
 ]:
-    """Register imported scaler artifact if present.
+    """Download and register imported scaler artifact if present.
 
     Args:
-        scaler: The scaler to register (may be None)
+        export_path: GCS path to the export directory
+        has_scaler: Whether a scaler artifact exists
 
     Returns:
         The registered scaler artifact or None
     """
-    if scaler is None:
+    if not has_scaler:
         logger.info("No scaler to import")
-    else:
-        logger.info("Registering scaler artifact")
+        return None
+
+    import tempfile
+    from pathlib import Path
+
+    from google.cloud import storage
+
+    bucket_name = export_path.replace("gs://", "").split("/")[0]
+    blob_path = "/".join(export_path.replace("gs://", "").split("/")[1:]) + "/scaler.joblib"
+
+    gcs_client = storage.Client()
+    bucket = gcs_client.bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        local_path = Path(tmpdir) / "scaler.joblib"
+        blob.download_to_filename(str(local_path))
+        scaler = joblib.load(local_path)
+
+    logger.info("Downloaded and registered scaler artifact")
     return scaler
 
 
@@ -174,9 +212,9 @@ def set_model_stage(
     enable_cache=False,  # Always run fresh for imports
 )
 def import_model_pipeline(
-    model_artifact: ClassifierMixin,
-    scaler_artifact: Optional[TransformerMixin],
+    export_path: str,
     import_metadata: dict,
+    has_scaler: bool = True,
     dest_stage: str = "production",
 ):
     """Import a model from another workspace.
@@ -185,7 +223,7 @@ def import_model_pipeline(
     while preserving all lineage and audit trail information from the source.
 
     The imported model version contains:
-    - Registered model and scaler artifacts
+    - Registered model and scaler artifacts (downloaded from GCS)
     - Original metrics (accuracy, precision, recall, etc.)
     - Source lineage links (workspace, version, pipeline run URL)
     - Complete promotion chain history
@@ -195,18 +233,21 @@ def import_model_pipeline(
     - "Can we trace a production prediction back to training data, code commit, and pipeline run?"
 
     Args:
-        model_artifact: The sklearn classifier to import
-        scaler_artifact: The scaler to import (may be None)
+        export_path: GCS path to the export directory
         import_metadata: Metadata from the export manifest
+        has_scaler: Whether a scaler artifact exists in the export
         dest_stage: Target stage in destination workspace
     """
-    # Register artifacts
-    registered_model = register_imported_model(
-        model=model_artifact,
+    # Download and register artifacts from GCS
+    registered_model = download_and_register_model(
+        export_path=export_path,
         import_metadata=import_metadata,
     )
 
-    register_imported_scaler(scaler=scaler_artifact)
+    download_and_register_scaler(
+        export_path=export_path,
+        has_scaler=has_scaler,
+    )
 
     # Log metadata for audit trail
     import_record = log_cross_workspace_metadata(

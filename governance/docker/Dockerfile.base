@@ -57,7 +57,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN pip install --upgrade pip uv setuptools \
     && uv pip install \
         "zenml==${ZENML_VERSION}" \
-        "zenml[mlflow,sklearn]==${ZENML_VERSION}" \
+        "zenml[sklearn]==${ZENML_VERSION}" \
     && uv pip freeze > requirements.txt
 
 # =============================================================================
@@ -85,13 +85,10 @@ ENV VIRTUAL_ENV=$VIRTUAL_ENV \
 
 WORKDIR /app
 
-# Install runtime system dependencies
+# Security updates (no extra apt packages needed)
 RUN set -ex \
     && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        ca-certificates \
+    && apt-get upgrade -y \
     && apt-get autoremove -y \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*

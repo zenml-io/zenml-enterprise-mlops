@@ -5,6 +5,9 @@ Demonstrates:
 - Automatic model versioning
 - Prediction lineage
 - Scheduled inference pattern
+
+In two-workspace mode, this runs in enterprise-production workspace.
+The workspace switch happens in run_demo.py before calling this chapter.
 """
 
 import subprocess
@@ -18,12 +21,28 @@ def print_section(title: str):
     print(f"{'─' * 60}\n")
 
 
-def run():
+def run(two_workspace: bool = False):
     """Run Chapter 6: Batch Inference."""
 
     print_section("🎯 What We're Demonstrating")
-    print(
-        """
+
+    if two_workspace:
+        print("  🏭 Workspace: enterprise-production\n")
+        print(
+            """
+Batch inference runs in the PRODUCTION workspace using the imported model.
+
+Key points to highlight:
+  ✓ Model was imported from dev-staging via cross-workspace promotion
+  ✓ Model loaded by STAGE, not version number
+  ✓ Inference lineage is preserved in the production workspace
+  ✓ Training lineage is preserved in dev-staging workspace
+  ✓ Scheduled via cron in GitOps workflow
+"""
+        )
+    else:
+        print(
+            """
 Batch inference uses the PRODUCTION model automatically.
 
 Key points to highlight:
@@ -32,7 +51,7 @@ Key points to highlight:
   ✓ Same code works as model versions change
   ✓ Scheduled via cron in GitOps workflow
 """
-    )
+        )
 
     print_section("📝 Batch Inference Pattern")
     print(
@@ -57,6 +76,26 @@ Benefits:
   • Complete lineage maintained
 """
     )
+
+    if two_workspace:
+        print_section("🔗 Lineage Across Workspaces")
+        print(
+            """
+  enterprise-dev-staging              enterprise-production
+  ┌────────────────────────┐         ┌──────────────────────────────┐
+  │ Training Lineage:      │         │ Inference Lineage:           │
+  │   data → features →   │         │   model → predictions →     │
+  │   model → metrics     │  audit  │   saved results             │
+  │                        │  trail  │                              │
+  │ Full training history  │ ◀─────▶ │ Model metadata links back   │
+  │ preserved here         │         │ to source workspace         │
+  └────────────────────────┘         └──────────────────────────────┘
+
+  Training lineage: Fully preserved in dev-staging
+  Inference lineage: Fully preserved in production
+  Audit trail: Production model metadata links back to source
+"""
+        )
 
     print_section("🔍 Current Production Model")
 
@@ -83,6 +122,20 @@ Benefits:
                     val = float(val.value if hasattr(val, "value") else val)
                     print(f"    {key}: {val:.4f}")
 
+            # Show source metadata if cross-workspace
+            if two_workspace:
+                print("\n  Source Metadata:")
+                for key in [
+                    "source_workspace",
+                    "source_version",
+                    "source_stage",
+                    "promotion_timestamp",
+                ]:
+                    if key in metrics:
+                        val = metrics[key]
+                        val = val.value if hasattr(val, "value") else val
+                        print(f"    {key}: {val}")
+
         except KeyError:
             print("  ⚠️  No production model found. Run Chapter 5 first!")
             return
@@ -92,6 +145,12 @@ Benefits:
         return
 
     print_section("🚀 Running Batch Inference")
+
+    # Ensure we're on default stack (or gcp-stack in production workspace)
+    print("  Setting stack to 'default'...")
+    subprocess.run(["zenml", "stack", "set", "default"], capture_output=True)
+    print("  ✅ Stack: default\n")
+
     print("Executing: python run.py --pipeline batch_inference\n")
 
     try:
@@ -113,8 +172,38 @@ Benefits:
         print("\n⚠️  run.py not found")
 
     print_section("📅 Scheduled Inference Pattern")
-    print(
-        """
+
+    if two_workspace:
+        print(
+            """
+In production, batch inference runs on a schedule in the production workspace:
+
+  .github/workflows/batch-inference.yml:
+
+    env:
+      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+
+    on:
+      schedule:
+        - cron: '0 6 * * *'  # Daily at 6 AM UTC
+
+    jobs:
+      inference:
+        steps:
+          - run: python run.py --pipeline batch_inference
+
+This enables:
+  • Daily risk scoring in the production workspace
+  • Automatic use of latest production model
+  • Inference lineage preserved in production
+  • Training lineage preserved in dev-staging
+  • Complete audit trail across workspaces
+"""
+        )
+    else:
+        print(
+            """
 In production, batch inference runs on a schedule:
 
   .github/workflows/batch-inference.yml:
@@ -134,7 +223,7 @@ This enables:
   • Complete lineage for every prediction
   • Easy audit of what model made what predictions
 """
-    )
+        )
 
     print_section("🎉 Demo Complete!")
     print(
@@ -144,16 +233,17 @@ You've seen the complete enterprise MLOps workflow:
   ┌─────────────────────────────────────────────────────────────┐
   │                                                             │
   │  1. TRAIN          Clean Python, automatic governance       │
-  │       ↓                                                     │
+  │       ↓            (enterprise-dev-staging)                 │
   │  2. VERSION        Model Control Plane tracks everything    │
-  │       ↓                                                     │
+  │       ↓            (enterprise-dev-staging)                 │
   │  3. STAGING        Validation gates, PR-triggered           │
-  │       ↓                                                     │
+  │       ↓            (enterprise-dev-staging)                 │
   │  4. COMPARE        Champion/Challenger for safe rollouts    │
-  │       ↓                                                     │
-  │  5. PRODUCTION     Release-triggered, higher bar            │
-  │       ↓                                                     │
+  │       ↓            (enterprise-dev-staging)                 │
+  │  5. PRODUCTION     Cross-workspace export/import            │
+  │       ↓            (dev-staging → production)               │
   │  6. INFERENCE      Scheduled batch, complete lineage        │
+  │                    (enterprise-production)                   │
   │                                                             │
   └─────────────────────────────────────────────────────────────┘
 
@@ -163,6 +253,7 @@ Key Enterprise Benefits:
   ✓ Complete audit trail (compliance-ready)
   ✓ GitOps workflows (git = source of truth)
   ✓ Safe rollouts (champion/challenger pattern)
+  ✓ ZenML version upgrade isolation (2 workspaces)
 
 Dashboard: zenml login
 Docs: docs/ARCHITECTURE.md

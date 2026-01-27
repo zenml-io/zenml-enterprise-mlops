@@ -84,22 +84,10 @@ case $choice in
             --flavor=local \
             --path="$REPO_ROOT/.zenml/local_store" || true
 
-        # Start MLflow server check
-        if ! lsof -i:5000 &> /dev/null; then
-            warn "MLflow server not running on port 5000"
-            echo "Start it with: mlflow server --host 127.0.0.1 --port 5000"
-        fi
-
-        info "Registering local MLflow..."
-        zenml experiment-tracker register local-mlflow \
-            --flavor=mlflow \
-            --tracking_uri=http://localhost:5000 || true
-
         info "Creating local-dev stack..."
         zenml stack register local-dev \
             -o local-orchestrator \
             -a local-artifact-store \
-            -e local-mlflow \
             --set || true
 
         info "✅ Local development stack setup complete!"

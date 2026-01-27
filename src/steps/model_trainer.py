@@ -14,19 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Model training step with MLflow integration."""
+"""Model training step."""
 
 from typing import Annotated
 
-import mlflow
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from zenml import ArtifactConfig, step
 from zenml.enums import ArtifactType
 from zenml.logger import get_logger
-
-from src.utils import get_experiment_tracker_name
 
 logger = get_logger(__name__)
 
@@ -62,16 +59,6 @@ def train_model(
         f"max_depth={max_depth}"
     )
 
-    # Get experiment tracker name (evaluated at step runtime, not import time)
-    experiment_tracker_name = get_experiment_tracker_name()
-
-    # Enable MLflow autologging if tracker is available
-    if experiment_tracker_name:
-        mlflow.sklearn.autolog()
-        logger.info(
-            f"MLflow autologging enabled with tracker: {experiment_tracker_name}"
-        )
-
     # Train model
     model = RandomForestClassifier(
         n_estimators=n_estimators,
@@ -82,10 +69,5 @@ def train_model(
     model.fit(X_train, y_train)
 
     logger.info("Model training completed")
-
-    # Log additional custom metrics if MLflow is available
-    if experiment_tracker_name:
-        mlflow.log_param("model_type", "RandomForestClassifier")
-        mlflow.log_param("use_case", "patient_readmission_prediction")
 
     return model

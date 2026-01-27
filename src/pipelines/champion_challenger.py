@@ -1,15 +1,16 @@
-"""Champion/Challenger Batch Inference Pipeline.
+"""Champion/Challenger Comparison Pipeline.
 
 This pipeline demonstrates the champion/challenger pattern for safe model rollouts:
-- Runs inference with both the current production model (champion) and a staging
-  candidate (challenger)
+- Runs inference with both the current staging model (champion) and the latest
+  trained model (challenger)
 - Compares predictions and metrics side-by-side
-- Enables data-driven decisions before promoting challenger to production
+- Enables data-driven decisions before promoting challenger to staging
 
-Use Cases:
-- A/B testing models before full production rollout
-- Shadow mode testing where challenger predictions are logged but not served
-- Gradual rollout with configurable traffic split
+This mirrors the validation step in CI/CD:
+- train-staging.yml trains a new model (becomes LATEST)
+- test-batch-inference.yml validates it
+- Champion/Challenger compares LATEST vs current STAGING
+- If safe → merge PR → promote LATEST to STAGING (Ch4)
 
 Example:
     python run.py --pipeline champion_challenger
@@ -28,20 +29,17 @@ MODEL_NAME = "breast_cancer_classifier"
 def load_inference_data() -> Annotated[pd.DataFrame, "inference_data"]:
     """Load data for inference comparison.
 
+    Uses the same breast cancer dataset as training to ensure feature compatibility.
     In production, this would load from BigQuery, GCS, or another data source.
     """
-    from sklearn.datasets import make_classification
+    from sklearn.datasets import load_breast_cancer
 
-    X, _ = make_classification(
-        n_samples=1000,
-        n_features=20,
-        n_informative=10,
-        n_redundant=5,
-        random_state=42,
-    )
+    # Load same dataset as training pipeline
+    data = load_breast_cancer(as_frame=True)
+    X = data.data
 
-    feature_names = [f"feature_{i}" for i in range(X.shape[1])]
-    return pd.DataFrame(X, columns=feature_names)
+    # Return a sample for comparison (simulating new inference data)
+    return X.sample(n=min(200, len(X)), random_state=42)
 
 
 @step
@@ -53,27 +51,27 @@ def predict_with_model(
 
     Args:
         data: Input features for prediction
-        model_stage: Which model stage to use ("production" or "staging")
+        model_stage: Which model stage to use ("staging" or "latest")
     """
+    from zenml.client import Client
+
     context = get_step_context()
+    client = Client()
 
     # Load model from the specified stage
-    if model_stage == "production":
-        model_version = context.model
-    else:
-        # Load challenger from staging
-        from zenml.client import Client
-
-        client = Client()
+    if model_stage == "staging":
+        # Champion: current staging model
         try:
-            staging_mv = client.get_model_version(
+            model_version = client.get_model_version(
                 model_name_or_id=MODEL_NAME,
                 model_version_name_or_number_or_id=ModelStages.STAGING,
             )
-            model_version = staging_mv
         except KeyError:
-            context.logger.warning("No staging model found, using production for both")
+            context.logger.warning("No staging model found, using latest for both")
             model_version = context.model
+    else:
+        # Challenger: latest trained model
+        model_version = context.model
 
     # Load artifacts
     model_artifact = model_version.get_artifact("sklearn_classifier")
@@ -154,8 +152,8 @@ def generate_comparison_report(
 # Champion vs Challenger Model Comparison Report
 
 ## Model Versions
-- **Champion (Production)**: v{comparison_metrics["champion_version"]}
-- **Challenger (Staging)**: v{comparison_metrics["challenger_version"]}
+- **Champion (Current Staging)**: v{comparison_metrics["champion_version"]}
+- **Challenger (Latest Trained)**: v{comparison_metrics["challenger_version"]}
 
 ## Prediction Agreement
 - **Total Samples**: {comparison_metrics["total_samples"]:,}
@@ -179,12 +177,12 @@ def generate_comparison_report(
     if agreement >= 0.95 and prob_diff < 0.05:
         report += """
 **SAFE TO PROMOTE**: Models are highly aligned. Challenger can likely be
-promoted to production with minimal risk.
+promoted to staging with minimal risk. Merge the PR to promote.
 """
     elif agreement >= 0.85:
         report += """
 **REVIEW RECOMMENDED**: Models show reasonable agreement but some divergence.
-Review disagreement cases before promotion.
+Review disagreement cases before merging PR to promote to staging.
 """
     else:
         report += """
@@ -201,7 +199,7 @@ cause before considering promotion. Consider:
 @pipeline(
     model=Model(
         name=MODEL_NAME,
-        version=ModelStages.PRODUCTION,
+        version=ModelStages.LATEST,
     ),
 )
 def champion_challenger_pipeline() -> str:
@@ -209,8 +207,8 @@ def champion_challenger_pipeline() -> str:
 
     This pipeline:
     1. Loads inference data
-    2. Runs predictions with production model (champion)
-    3. Runs predictions with staging model (challenger)
+    2. Runs predictions with staging model (champion = current staging)
+    3. Runs predictions with latest model (challenger = newly trained)
     4. Compares predictions and generates report
 
     Returns:
@@ -222,13 +220,13 @@ def champion_challenger_pipeline() -> str:
     # Run both models
     champion_predictions = predict_with_model(
         data=inference_data,
-        model_stage="production",
+        model_stage="staging",
         id="champion_predict",
     )
 
     challenger_predictions = predict_with_model(
         data=inference_data,
-        model_stage="staging",
+        model_stage="latest",
         id="challenger_predict",
     )
 

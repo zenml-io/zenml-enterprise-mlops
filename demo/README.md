@@ -1,11 +1,11 @@
 # Enterprise MLOps Demo
 
-Interactive demo showcasing the complete model lifecycle and promotion flow.
+Interactive demo showcasing the complete model lifecycle with 2-workspace architecture, mirroring the GitHub Actions CI/CD flow.
 
 ## Quick Start
 
 ```bash
-# Run the full demo (interactive)
+# Run the full demo (interactive, auto-detects workspace mode)
 python demo/run_demo.py
 
 # Run specific chapter
@@ -16,105 +16,104 @@ python demo/run_demo.py --auto
 
 # List all chapters
 python demo/run_demo.py --list
+
+# Force single-workspace mode
+python demo/run_demo.py --workspace-mode single-workspace
 ```
-
-## Chapters
-
-| # | Chapter | What It Demonstrates |
-|---|---------|---------------------|
-| 1 | **Train a Model** | Clean Python code, automatic governance via hooks |
-| 2 | **Model Control Plane** | Single source of truth, lineage, audit trail |
-| 3 | **Promote to Staging** | Validation gates (70% threshold), GitOps pattern |
-| 4 | **Champion vs Challenger** | A/B comparison, safe rollout decision |
-| 5 | **Promote to Production** | Higher bar (80%), release-triggered workflow |
-| 6 | **Batch Inference** | Load by stage, scheduled predictions, lineage |
-
-## Demo Flow
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│  Chapter 1: TRAIN ──▶ Chapter 2: EXPLORE ──▶ Chapter 3: STAGING             │
-│                                                       │                     │
-│                                                       ▼                     │
-│  Chapter 6: INFERENCE ◀── Chapter 5: PRODUCTION ◀── Chapter 4: COMPARE      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Key Talking Points
-
-### Chapter 1: Clean Developer Experience
-> "Data scientists write pure Python - just `@step` and `@pipeline`. No wrapper code, no boilerplate. Platform governance happens automatically via hooks."
-
-### Chapter 2: Single Source of Truth
-> "The Model Control Plane tracks every model version with complete lineage. From any prediction, trace back to training data and code commit."
-
-### Chapter 3: Validation Gates
-> "Platform team sets the rules. Models must meet 70% accuracy/precision/recall before staging. This happens automatically - data scientists don't bypass it."
-
-### Chapter 4: Safe Rollouts
-> "Before promoting to production, run champion/challenger. Both models predict on the same data - you see exactly how they differ before risking production."
-
-### Chapter 5: Higher Bar for Production
-> "Production requires 80% performance - higher than staging. Triggered by GitHub release for complete audit trail. Requires explicit `--force` to replace existing model."
-
-### Chapter 6: Automatic Model Loading
-> "Batch inference loads model by STAGE, not version. When you promote a new model, inference automatically uses it. Complete lineage preserved."
 
 ## Prerequisites
 
 ```bash
-# From project root
 pip install -r requirements.txt
 zenml init
 ```
 
-## Running Individual Chapters
+### 2-Workspace Mode (Recommended)
 
-Each chapter can be run standalone:
+Create a `.env` file in the project root:
 
-```bash
-# Chapter 1: Train
-python demo/chapters/chapter_1_training.py
-
-# Chapter 2: Explore Model Control Plane
-python demo/chapters/chapter_2_model_control_plane.py
-
-# Chapter 3: Promote to Staging
-python demo/chapters/chapter_3_promote_staging.py
-
-# Chapter 4: Champion/Challenger
-python demo/chapters/chapter_4_champion_challenger.py
-
-# Chapter 5: Promote to Production
-python demo/chapters/chapter_5_promote_production.py
-
-# Chapter 6: Batch Inference
-python demo/chapters/chapter_6_batch_inference.py
+```env
+ZENML_DEV_STAGING_URL=https://enterprise-dev-staging.zenml.io
+ZENML_DEV_STAGING_API_KEY=your-dev-staging-api-key
+ZENML_PRODUCTION_URL=https://enterprise-production.zenml.io
+ZENML_PRODUCTION_API_KEY=your-production-api-key
 ```
 
-## Tips for Demos
+The demo auto-detects 2-workspace mode when both sets of credentials are present.
 
-1. **Start with dashboard open**: `zenml login` in another terminal
-2. **Use `--chapter` for focused demos**: Skip to relevant chapters
-3. **Show code alongside**: Open `src/pipelines/training.py` to show clean code
-4. **Highlight governance**: Show `governance/hooks/` to explain automatic enforcement
-5. **Emphasize audit trail**: Click through dashboard to show lineage
+### Stacks Required
 
-## Customizing for Customer Demos
+In the dev-staging workspace:
+- `default` — Local orchestrator for fast iteration (Ch1)
+- `staging-stack` — Vertex AI orchestrator, GCS artifacts (Ch2)
 
-The demo uses sklearn's breast cancer dataset for binary classification. To customize:
+In the production workspace:
+- `default` or `gcp-stack` — For batch inference (Ch6)
 
-1. **Change domain language**: Update model name in `src/pipelines/`
-2. **Adjust thresholds**: Modify `scripts/promote_model.py` validation requirements
-3. **Add industry hooks**: Create domain-specific hooks in `governance/hooks/`
+## Demo Flow
+
+```
+  enterprise-dev-staging                    enterprise-production
+  ┌───────────────────────────────┐        ┌─────────────────────────────┐
+  │ Ch1: Train locally (dev)      │        │                             │
+  │ Ch2: PR → staging-stack       │        │                             │
+  │ Ch3: Champion vs Challenger   │        │                             │
+  │ Ch4: Promote to staging       │        │                             │
+  │ Ch5: Export model ────────────────────▶│ Ch5: Import model           │
+  │                               │        │      (set to production)    │
+  │                               │        │ Ch6: Batch inference        │
+  └───────────────────────────────┘        └─────────────────────────────┘
+```
+
+## Chapters
+
+| # | Chapter | Stack | What It Demonstrates |
+|---|---------|-------|---------------------|
+| 1 | **Train Locally** | default (local) | Clean Python, fast iteration, automatic governance |
+| 2 | **Simulate PR → Staging Training** | staging-stack (Vertex AI) | CI/CD training, production-like infra, staging config |
+| 3 | **Champion vs Challenger** | default | New model vs current staging, safe rollout validation |
+| 4 | **Promote to Staging** | — | Validation gates (70% threshold), MCP exploration |
+| 5 | **Promote to Production** | — | Cross-workspace export/import with metadata |
+| 6 | **Batch Inference** | production workspace | Load by stage, scheduled predictions, lineage |
+
+## GitHub Actions Alignment
+
+The demo chapters directly mirror the CI/CD workflows:
+
+| Workflow | Chapter | Trigger |
+|----------|---------|---------|
+| `train-staging.yml` | Ch1 + Ch2 | PR to main (trains on staging-stack) |
+| `test-batch-inference.yml` | Ch3 | After training completes (validates model) |
+| PR merge | Ch4 | Merge PR (promotes to staging) |
+| `promote-to-production.yml` | Ch5 | GitHub Release (cross-workspace export/import) |
+| `batch-inference.yml` | Ch6 | Daily cron (production workspace) |
+
+## Key Talking Points
+
+### Chapter 1: Fast Local Iteration
+> "Data scientists iterate locally with instant feedback. Same pipeline code, local stack. `@step` and `@pipeline` — no wrappers."
+
+### Chapter 2: CI/CD Staging Training
+> "Push code, open PR, staging training runs automatically on Vertex AI. Same pipeline, different stack. That's the power of ZenML's stack abstraction."
+
+### Chapter 3: Safe Rollouts
+> "Before promoting, compare new model against current staging. Agreement rate, probability diff, data-driven recommendation."
+
+### Chapter 4: Governed Promotion
+> "Platform team sets the gates — 70% accuracy, precision, recall. Model promoted to staging only if it passes. Full audit trail."
+
+### Chapter 5: Cross-Workspace Deployment
+> "This solves your #1 pain point: multi-environment promotion. Export from dev-staging, import into production. Full metadata preserved. ZenML version upgrade isolation."
+
+### Chapter 6: Production Inference
+> "Batch inference in production workspace. Model loaded by stage. Inference lineage preserved here, training lineage preserved in dev-staging."
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | "No model found" | Run Chapter 1 first to train a model |
-| "No staging model" | Run Chapter 3 to promote to staging |
-| "Comparison failed" | Need both staging AND production models |
-| "Permission denied" | Check ZenML connection: `zenml status` |
+| "staging-stack not found" | Check `zenml stack list` in dev-staging workspace |
+| "Missing credentials" | Set env vars in `.env` |
+| "Cross-workspace failed" | Check GCS bucket access and both workspace credentials |
+| Vertex AI timeout | Staging training takes longer than local — this is expected |

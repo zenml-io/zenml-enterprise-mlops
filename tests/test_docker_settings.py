@@ -63,18 +63,17 @@ class TestStandardDockerSettings:
         assert STANDARD_DOCKER_SETTINGS.python_package_installer.value == "uv"
 
     def test_required_integrations(self):
-        """Standard settings should include mlflow and sklearn."""
+        """Standard settings should include sklearn."""
         from governance.docker import STANDARD_DOCKER_SETTINGS
 
-        assert "mlflow" in STANDARD_DOCKER_SETTINGS.required_integrations
         assert "sklearn" in STANDARD_DOCKER_SETTINGS.required_integrations
 
-    def test_apt_packages(self):
-        """Standard settings should include git and curl."""
+    def test_no_apt_packages(self):
+        """Standard settings should not require apt packages."""
         from governance.docker import STANDARD_DOCKER_SETTINGS
 
-        assert "git" in STANDARD_DOCKER_SETTINGS.apt_packages
-        assert "curl" in STANDARD_DOCKER_SETTINGS.apt_packages
+        # apt_packages should be None or empty
+        assert not STANDARD_DOCKER_SETTINGS.apt_packages
 
     def test_environment_variables(self):
         """Standard settings should set Python environment variables."""
@@ -95,11 +94,10 @@ class TestGPUDockerSettings:
         assert "cuda" in GPU_DOCKER_SETTINGS.parent_image
 
     def test_required_integrations(self):
-        """GPU settings should include pytorch and mlflow."""
+        """GPU settings should include pytorch."""
         from governance.docker import GPU_DOCKER_SETTINGS
 
         assert "pytorch" in GPU_DOCKER_SETTINGS.required_integrations
-        assert "mlflow" in GPU_DOCKER_SETTINGS.required_integrations
 
     def test_cuda_environment(self):
         """GPU settings should set CUDA environment variables."""
@@ -129,7 +127,7 @@ class TestLightweightDockerSettings:
         from governance.docker import LIGHTWEIGHT_DOCKER_SETTINGS
 
         # Should have minimal or no integrations
-        assert len(LIGHTWEIGHT_DOCKER_SETTINGS.required_integrations) == 0
+        assert not LIGHTWEIGHT_DOCKER_SETTINGS.required_integrations
 
 
 class TestGetDockerSettings:
@@ -141,7 +139,7 @@ class TestGetDockerSettings:
 
         settings = get_docker_settings(base="standard")
         assert settings.parent_image == "python:3.11-slim"
-        assert "mlflow" in settings.required_integrations
+        assert "sklearn" in settings.required_integrations
 
     def test_gpu_base(self):
         """Factory should return settings based on GPU config."""
@@ -156,7 +154,7 @@ class TestGetDockerSettings:
         from governance.docker import get_docker_settings
 
         settings = get_docker_settings(base="lightweight")
-        assert len(settings.required_integrations) == 0
+        assert not settings.required_integrations
 
     def test_extra_apt_packages(self):
         """Factory should add extra apt packages."""
@@ -168,8 +166,6 @@ class TestGetDockerSettings:
         )
         assert "ffmpeg" in settings.apt_packages
         assert "libsndfile1" in settings.apt_packages
-        # Original packages should still be there
-        assert "git" in settings.apt_packages
 
     def test_extra_integrations(self):
         """Factory should add extra integrations."""
@@ -182,7 +178,7 @@ class TestGetDockerSettings:
         assert "huggingface" in settings.required_integrations
         assert "wandb" in settings.required_integrations
         # Original integrations should still be there
-        assert "mlflow" in settings.required_integrations
+        assert "sklearn" in settings.required_integrations
 
     def test_extra_requirements(self):
         """Factory should add extra requirements."""

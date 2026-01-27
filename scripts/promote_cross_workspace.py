@@ -60,7 +60,7 @@ import json
 import os
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -128,6 +128,12 @@ def connect_to_workspace(workspace_name: str) -> Client:
     # Set ZenML environment variables for auto-connection
     os.environ["ZENML_STORE_URL"] = url
     os.environ["ZENML_STORE_API_KEY"] = api_key
+
+    # Reset the Client singleton so it picks up the new env vars
+    Client._reset_instance()
+    from zenml.config.global_config import GlobalConfiguration
+    gc = GlobalConfiguration()
+    gc._zen_store = None
 
     # Set project
     result = subprocess.run(
@@ -205,12 +211,12 @@ def export_model(
         )
 
     # Create export manifest
-    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%S")
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
     export_path = f"exports/{model_name}/{source_workspace}_to_production/{timestamp}"
 
     manifest = {
         "model_name": model_name,
-        "export_timestamp": datetime.utcnow().isoformat(),
+        "export_timestamp": datetime.now(tz=timezone.utc).isoformat(),
         "export_path": f"gs://{exchange_bucket}/{export_path}",
         # Source information
         "source": {
@@ -237,7 +243,7 @@ def export_model(
                 "action": "exported",
                 "from_workspace": source_workspace,
                 "from_version": model_version.number,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             }
         ],
     }
@@ -363,56 +369,38 @@ def import_model(
     logger.info(f"Loaded manifest for {manifest['model_name']}")
     logger.info(f"Source: {manifest['source']['workspace']} v{manifest['source']['model_version']}")
 
-    # Download model artifacts to temp directory
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Download model
-        model_path = manifest["artifacts"]["model"].replace(f"gs://{exchange_bucket}/", "")
-        model_blob = bucket.blob(model_path)
-        local_model_path = Path(tmpdir) / "model.joblib"
-        model_blob.download_to_filename(str(local_model_path))
-        model = joblib.load(local_model_path)
-        logger.info("Downloaded model artifact")
+    # Add import entry to promotion chain
+    manifest["promotion_chain"].append({
+        "action": "imported",
+        "to_workspace": dest_workspace,
+        "to_stage": dest_stage,
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+    })
 
-        # Download scaler if exists
-        scaler = None
-        if manifest["artifacts"].get("scaler"):
-            scaler_path = manifest["artifacts"]["scaler"].replace(f"gs://{exchange_bucket}/", "")
-            scaler_blob = bucket.blob(scaler_path)
-            local_scaler_path = Path(tmpdir) / "scaler.joblib"
-            scaler_blob.download_to_filename(str(local_scaler_path))
-            scaler = joblib.load(local_scaler_path)
-            logger.info("Downloaded scaler artifact")
+    # Run import pipeline (steps download artifacts from GCS directly)
+    logger.info("Running import pipeline...")
 
-        # Add import entry to promotion chain
-        manifest["promotion_chain"].append({
-            "action": "imported",
-            "to_workspace": dest_workspace,
-            "to_stage": dest_stage,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+    from src.pipelines.import_model import import_model_pipeline
 
-        # Run import pipeline
-        logger.info("Running import pipeline...")
+    export_path = manifest["export_path"]
+    has_scaler = manifest["artifacts"].get("scaler") is not None
 
-        from src.pipelines.import_model import import_model_pipeline
+    import_model_pipeline(
+        export_path=export_path,
+        import_metadata=manifest,
+        has_scaler=has_scaler,
+        dest_stage=dest_stage,
+    )
 
-        # Run the import pipeline
-        import_model_pipeline(
-            model_artifact=model,
-            scaler_artifact=scaler,
-            import_metadata=manifest,
-            dest_stage=dest_stage,
-        )
+    logger.info(f"✅ Model imported to {dest_workspace}")
 
-        logger.info(f"✅ Model imported to {dest_workspace}")
+    # Get the newly created model version
+    model_version = client.get_model_version(
+        manifest["model_name"],
+        ModelStages.PRODUCTION if dest_stage == "production" else ModelStages.STAGING,
+    )
 
-        # Get the newly created model version
-        model_version = client.get_model_version(
-            manifest["model_name"],
-            ModelStages.PRODUCTION if dest_stage == "production" else ModelStages.STAGING,
-        )
-
-        return str(model_version.id)
+    return str(model_version.id)
 
 
 @click.command()

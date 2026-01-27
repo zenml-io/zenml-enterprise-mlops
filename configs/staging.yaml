@@ -25,17 +25,15 @@ tags:
   - "pre-release"
 
 # Docker and resource settings
+# Using default ZenML images (have ZenML pre-installed)
 settings:
   docker:
-    parent_image: python:3.11-slim
+    # No parent_image = use default ZenML image (has ZenML pre-installed)
     python_package_installer: uv
     required_integrations:
-      - mlflow
       - sklearn
-    apt_packages:
-      - git
-      - curl
-      - ca-certificates
+  orchestrator:
+    synchronous: false  # Don't block - run in background on Vertex AI
   resources:
     cpu_count: 2
     memory: 4GB

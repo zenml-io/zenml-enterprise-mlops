@@ -44,12 +44,9 @@ Understanding when to use stack components vs hooks:
 
 | Concern | Solution | Configuration |
 |---------|----------|---------------|
-| Experiment tracking (MLflow) | **Stack component** | `zenml stack update --experiment_tracker mlflow` |
 | Slack notifications | **Stack component + Hook** | Alerter in stack, hooks call it |
 | Compliance logging | **Hook** | `on_failure=compliance_failure_hook` |
 | Data validation | **Step** | `validate_data_quality(data)` |
-
-**Key insight**: MLflow tracking is automatic via the experiment tracker stack component - no hook needed!
 
 ## Usage Patterns
 
@@ -81,22 +78,6 @@ def training_pipeline():
 | `pipeline_success_hook` | Pipeline completes | Sends completion notification |
 | `pipeline_failure_hook` | Pipeline fails | Sends alert + logs for compliance |
 | `compliance_failure_hook` | Pipeline fails | Logs to audit system |
-
-### Stack Component: Experiment Tracking (MLflow)
-
-MLflow experiment tracking is configured via stack components - no code needed:
-
-```bash
-# Register MLflow tracker
-zenml experiment-tracker register mlflow_tracker \
-    --flavor=mlflow \
-    --tracking_uri=<your-mlflow-uri>
-
-# Add to stack
-zenml stack update my_stack --experiment_tracker mlflow_tracker
-```
-
-Now MLflow logs automatically for any pipeline using that stack!
 
 ### Stack Component: Slack Alerter
 
@@ -166,7 +147,7 @@ def train_with_gpu(data):
 ```
 
 Available configurations:
-- `STANDARD_DOCKER_SETTINGS` - Python 3.11, MLflow, sklearn
+- `STANDARD_DOCKER_SETTINGS` - Python 3.11, sklearn
 - `GPU_DOCKER_SETTINGS` - PyTorch with CUDA 11.8
 - `LIGHTWEIGHT_DOCKER_SETTINGS` - Minimal for preprocessing
 
@@ -183,7 +164,6 @@ Recommended production stack:
 zenml stack register production_stack \
     --orchestrator kubernetes \
     --artifact_store gcs \
-    --experiment_tracker mlflow \
     --alerter slack \
     --container_registry gcr
 ```
@@ -228,7 +208,6 @@ from governance.docker import STANDARD_DOCKER_SETTINGS
 
 ### What's Automatic (No Code Needed)
 
-- **MLflow tracking** - Just use a stack with experiment_tracker
 - **Artifact storage** - Configured via artifact_store in stack
 - **Container builds** - Docker settings handle this
 
