@@ -68,6 +68,7 @@ import click
 import joblib
 from dotenv import load_dotenv
 from google.cloud import storage
+from zenml import log_metadata
 from zenml.client import Client
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
@@ -193,21 +194,38 @@ def export_model(
     model = model_artifact.load()
     scaler = scaler_artifact.load() if scaler_artifact else None
 
-    # Extract metrics from metadata
+    # Extract metrics and existing promotion_chain from metadata
     metrics = {}
+    existing_chain = []
     for key, value in (model_version.run_metadata or {}).items():
-        if hasattr(value, "value"):
+        if key == "promotion_chain":
+            # Preserve existing promotion history
+            chain_value = value.value if hasattr(value, "value") else value
+            if isinstance(chain_value, str):
+                existing_chain = json.loads(chain_value)
+            elif isinstance(chain_value, list):
+                existing_chain = chain_value
+        elif hasattr(value, "value"):
             metrics[key] = value.value
         elif isinstance(value, (int, float, str, bool)):
             metrics[key] = value
 
-    # Get pipeline run info
+    # Get project for URL construction
+    project = WORKSPACE_CONFIG[source_workspace]["project"]
+
+    # Build model version URL
+    model_version_url = (
+        f"https://cloud.zenml.io/workspaces/{source_workspace}/"
+        f"projects/{project}/model-versions/{model_version.id}?tab=overview"
+    )
+
+    # Build training pipeline run URL
     pipeline_run_ids = list(model_version.pipeline_run_ids or [])
-    pipeline_run_url = None
+    training_run_url = None
     if pipeline_run_ids:
-        pipeline_run_url = (
+        training_run_url = (
             f"https://cloud.zenml.io/workspaces/{source_workspace}/"
-            f"pipelines/runs/{pipeline_run_ids[0]}"
+            f"projects/{project}/runs/{pipeline_run_ids[0]}?tab=overview"
         )
 
     # Create export manifest
@@ -224,8 +242,8 @@ def export_model(
             "model_version": model_version.number,
             "model_version_id": str(model_version.id),
             "stage": source_stage,
-            "pipeline_run_ids": [str(pid) for pid in pipeline_run_ids],
-            "pipeline_run_url": pipeline_run_url,
+            "model_version_url": model_version_url,
+            "training_run_url": training_run_url,
             "created_at": str(model_version.created),
         },
         # Metrics for validation
@@ -237,12 +255,15 @@ def export_model(
             if scaler
             else None,
         },
-        # Lineage chain (will be extended on each promotion)
-        "promotion_chain": [
+        # Lineage chain - includes any existing promotions (e.g., none → staging)
+        # and appends the export action
+        "promotion_chain": existing_chain + [
             {
                 "action": "exported",
                 "from_workspace": source_workspace,
+                "from_stage": source_stage,
                 "from_version": model_version.number,
+                "model_version_url": model_version_url,
                 "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             }
         ],
@@ -277,9 +298,10 @@ def export_model(
     )
     logger.info(f"Uploaded manifest to gs://{exchange_bucket}/{export_path}/manifest.json")
 
-    # Write export path to file for GitHub Actions
-    with open("export_path.txt", "w") as f:
-        f.write(f"gs://{exchange_bucket}/{export_path}")
+    # Write export path to file for GitHub Actions (only in CI environment)
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+        with open("export_path.txt", "w") as f:
+            f.write(f"gs://{exchange_bucket}/{export_path}")
 
     return manifest
 
@@ -574,6 +596,42 @@ def promote_cross_workspace(
             exchange_bucket=bucket,
         )
 
+        # Update source model with promotion metadata (bidirectional link)
+        if source_workspace and import_from is None:
+            logger.info("\nUpdating source model with promotion metadata...")
+            source_client = connect_to_workspace(source_workspace)
+
+            # Get the project for URL construction
+            project = WORKSPACE_CONFIG[dest_workspace]["project"]
+            dest_model_url = (
+                f"https://cloud.zenml.io/workspaces/{dest_workspace}/"
+                f"projects/{project}/model-versions/{new_version_id}?tab=overview"
+            )
+
+            source_model_version = source_client.get_model_version(
+                model_name_or_id=model,
+                model_version_name_or_number_or_id=manifest["source"]["model_version"],
+            )
+
+            # Add promotion metadata to source model
+            promotion_metadata = {
+                "promoted_to": {
+                    "workspace": dest_workspace,
+                    "stage": dest_stage,
+                    "model_version_id": new_version_id,
+                    "model_version_url": dest_model_url,
+                    "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                }
+            }
+
+            # Use ZenML's metadata API to update the source model
+            log_metadata(
+                metadata=promotion_metadata,
+                model_name=model,
+                model_version=source_model_version.number,
+            )
+            logger.info(f"  ✅ Source model v{source_model_version.number} updated with promotion link")
+
         logger.info("\n" + "=" * 60)
         logger.info("✅ PROMOTION COMPLETE")
         logger.info("=" * 60)
@@ -586,8 +644,11 @@ def promote_cross_workspace(
         logger.info("\n📋 Audit Trail (stored in model metadata):")
         logger.info(f"  - Source workspace: {manifest['source']['workspace']}")
         logger.info(f"  - Source version: {manifest['source']['model_version']}")
-        logger.info(f"  - Source pipeline run: {manifest['source'].get('pipeline_run_url', 'N/A')}")
+        logger.info(f"  - Source model: {manifest['source'].get('model_version_url', 'N/A')}")
         logger.info(f"  - Metrics preserved: {list(manifest['metrics'].keys())}")
+        logger.info("\n📋 Bidirectional link created:")
+        logger.info(f"  - Source model v{manifest['source']['model_version']} → promoted_to.{dest_workspace}")
+        logger.info(f"  - Dest model → source.{manifest['source']['workspace']}")
 
 
 if __name__ == "__main__":

@@ -47,10 +47,6 @@ uv.lock
 zenml_local.db
 .zenml/
 
-# MLflow
-mlruns/
-mlartifacts/
-
 # Logs
 *.log
 logs/
@@ -93,3 +89,6 @@ dmypy.json
 *.tfstate.*
 .terraform/
 terraform.tfvars
+
+# CI/CD artifacts
+export_path.txt

@@ -43,7 +43,10 @@ Usage:
     python scripts/promote_model.py --model breast_cancer_classifier --from-stage staging --to-stage production
 """
 
+from datetime import datetime, timezone
+
 import click
+from zenml import log_metadata
 from zenml.client import Client
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
@@ -192,6 +195,12 @@ def validate_promotion(model_version, to_stage: str) -> bool:
     default=False,
     help="Skip validation checks (use with caution!)",
 )
+@click.option(
+    "--workspace",
+    type=str,
+    default="enterprise-dev-staging",
+    help="Workspace name for audit trail URLs (default: enterprise-dev-staging)",
+)
 def promote_model(
     model: str,
     version: str,
@@ -199,6 +208,7 @@ def promote_model(
     to_stage: str,
     force: bool,
     skip_validation: bool,
+    workspace: str,
 ):
     """Promote a model to a new stage with validation.
 
@@ -275,15 +285,60 @@ def promote_model(
 
         model_version.set_stage(stage=stage_map[to_stage], force=force)
 
+        # Get project for audit trail URLs
+        project_name = client.active_project.name
+
+        # Build pipeline run URL (the training run that created this model)
+        pipeline_run_ids = list(model_version.pipeline_run_ids or [])
+        training_run_url = None
+        if pipeline_run_ids:
+            training_run_url = (
+                f"https://cloud.zenml.io/workspaces/{workspace}/"
+                f"projects/{project_name}/runs/{pipeline_run_ids[0]}?tab=overview"
+            )
+
+        # Log promotion event to promotion_chain for full audit trail
+        # This tracks: none → staging → (later: exported → imported to production)
+        existing_chain = []
+        if "promotion_chain" in model_version.run_metadata:
+            chain_meta = model_version.run_metadata["promotion_chain"]
+            existing_chain = chain_meta.value if hasattr(chain_meta, "value") else chain_meta
+            if isinstance(existing_chain, str):
+                import json
+                existing_chain = json.loads(existing_chain)
+
+        # Get current stage (could be enum or string depending on ZenML version)
+        current_stage = model_version.stage
+        if hasattr(current_stage, "value"):
+            current_stage = current_stage.value
+        current_stage = str(current_stage) if current_stage else "none"
+
+        promotion_entry = {
+            "action": "promoted",
+            "workspace": workspace,
+            "from_stage": current_stage,
+            "to_stage": to_stage,
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "training_run_url": training_run_url,
+        }
+
+        updated_chain = existing_chain + [promotion_entry]
+
+        log_metadata(
+            metadata={"promotion_chain": updated_chain},
+            model_name=model,
+            model_version=model_version.number,
+        )
+
         logger.info(
             f"✅ Successfully promoted {model} v{model_version.number} to {to_stage}!"
         )
         logger.info(
-            f"Dashboard: https://cloud.zenml.io/workspaces/zenml-projects/projects/.../model-versions/{model_version.id}"
+            f"Dashboard: https://cloud.zenml.io/workspaces/{workspace}/projects/{project_name}/model-versions/{model_version.id}?tab=overview"
         )
 
         # Log promotion event for audit trail
-        logger.info("📋 Promotion logged for compliance audit trail")
+        logger.info(f"📋 Promotion logged to audit trail (promotion_chain: {len(updated_chain)} entries)")
 
     except Exception as e:
         logger.error(f"❌ Promotion failed: {e!s}")

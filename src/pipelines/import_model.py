@@ -150,21 +150,50 @@ def log_cross_workspace_metadata(
         log_metadata(metadata=metrics, infer_model=True)
         logger.info(f"Logged {len(metrics)} metrics to model version")
 
+    # Get current pipeline run context for import_run_url
+    context = get_step_context()
+    pipeline_run = context.pipeline_run
+
+    # Get workspace and project from the promotion_chain (added during import)
+    promotion_chain = import_metadata.get("promotion_chain", [])
+    workspace_name = None
+    if promotion_chain and promotion_chain[-1].get("action") == "imported":
+        workspace_name = promotion_chain[-1].get("to_workspace")
+
+    # Get project name from client
+    from zenml.client import Client
+    client = Client()
+    project_name = client.active_project.name
+
+    # Build import pipeline run URL
+    # Format: https://cloud.zenml.io/workspaces/{workspace}/projects/{project}/runs/{run_id}?tab=overview
+    import_run_url = None
+    if workspace_name and project_name:
+        import_run_url = (
+            f"https://cloud.zenml.io/workspaces/{workspace_name}/"
+            f"projects/{project_name}/runs/{pipeline_run.id}?tab=overview"
+        )
+
+    # Update the last promotion_chain entry (the import action) with the run URL
+    if promotion_chain and promotion_chain[-1].get("action") == "imported" and import_run_url:
+        promotion_chain[-1]["import_run_url"] = import_run_url
+
     # Log source lineage information
     lineage_metadata = {
         "source": {
             "workspace": source.get("workspace"),
             "model_version": source.get("model_version"),
             "model_version_id": source.get("model_version_id"),
-            "pipeline_run_url": source.get("pipeline_run_url"),
+            "model_version_url": source.get("model_version_url"),
+            "training_run_url": source.get("training_run_url"),
             "created_at": source.get("created_at"),
         },
         "git_commit": metrics.get("git_commit"),
-        "promotion_chain": import_metadata.get("promotion_chain", []),
+        "promotion_chain": promotion_chain,
         "imported_at": import_metadata.get("export_timestamp"),
     }
 
-    log_metadata(metadata={"cross_workspace_lineage": lineage_metadata}, infer_model=True)
+    log_metadata(metadata=lineage_metadata, infer_model=True)
     logger.info("Logged cross-workspace lineage metadata")
 
     return {
@@ -225,7 +254,7 @@ def import_model_pipeline(
     The imported model version contains:
     - Registered model and scaler artifacts (downloaded from GCS)
     - Original metrics (accuracy, precision, recall, etc.)
-    - Source lineage links (workspace, version, pipeline run URL)
+    - Source lineage links (workspace, version, model version URL)
     - Complete promotion chain history
 
     This addresses enterprise requirements:

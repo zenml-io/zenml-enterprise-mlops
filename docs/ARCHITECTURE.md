@@ -839,8 +839,8 @@ print(f"Trained in: {source['workspace']}")
 print(f"Original version: {source['model_version']}")
 print(f"Git commit: {source['git_commit']}")
 
-# Link to original pipeline run
-print(f"Source run: {source['pipeline_run_url']}")
+# Link to original model version
+print(f"Source model: {source['model_version_url']}")
 ```
 
 ---
