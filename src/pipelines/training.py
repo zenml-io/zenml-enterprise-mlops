@@ -77,6 +77,7 @@ def check_and_apply_smote(
     Returns:
         Training features and labels (resampled if needed)
     """
+    print("Hey!")
     if not enable_resampling:
         logger.info("SMOTE resampling disabled")
         return X_train, y_train
