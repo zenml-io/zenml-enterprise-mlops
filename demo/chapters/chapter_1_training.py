@@ -27,7 +27,7 @@ def run():
 
     print_section("🎯 What We're Demonstrating")
     print("  🔧 Workspace: enterprise-dev-staging")
-    print("  📦 Stack: default (local orchestrator, fast iteration)")
+    print("  📦 Stack: dev-stack (local orchestrator, GCS artifacts)")
     print(
         """
 A data scientist iterates locally with fast feedback loops.
@@ -70,16 +70,15 @@ Notice:
 
     print_section("🚀 Running the Training Pipeline (local)")
 
-    # Ensure we're on default stack for local training
-    print("  Setting stack to 'default' (local orchestrator)...")
-    subprocess.run(["zenml", "stack", "set", "default"], capture_output=True)
-    print("  ✅ Stack: default\n")
+    # Note: run.py automatically sets dev-stack for local environment
+    print("  Stack will be set automatically by run.py based on environment")
+    print("  ✅ Environment: local → Stack: dev-stack\n")
 
-    print("Command: python run.py --pipeline training\n")
+    print("Command: python run.py --pipeline training --environment local\n")
 
     try:
         result = subprocess.run(
-            [sys.executable, "run.py", "--pipeline", "training"],
+            [sys.executable, "run.py", "--pipeline", "training", "--environment", "local"],
             capture_output=False,
             text=True,
             timeout=300,

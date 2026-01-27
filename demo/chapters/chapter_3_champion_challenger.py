@@ -27,7 +27,7 @@ def run():
 
     print_section("🎯 What We're Demonstrating")
     print("  🔧 Workspace: enterprise-dev-staging")
-    print("  📦 Stack: default (local) — fast iteration for validation")
+    print("  📦 Stack: dev-stack (local orchestrator, GCS artifacts)")
     print(
         """
 After the staging training (Ch2), we validate the new model before promoting.
@@ -116,10 +116,10 @@ staging model (champion) to ensure we're not regressing.
 
     print_section("🚀 Running Champion/Challenger Comparison")
 
-    # Ensure we're on default stack for fast local execution
-    print("  Setting stack to 'default' (local orchestrator)...")
-    subprocess.run(["zenml", "stack", "set", "default"], capture_output=True)
-    print("  ✅ Stack: default\n")
+    # Ensure we're on dev-stack
+    print("  Setting stack to 'dev-stack'...")
+    subprocess.run(["zenml", "stack", "set", "dev-stack"], capture_output=True)
+    print("  ✅ Stack: dev-stack\n")
 
     # The champion_challenger_pipeline compares STAGING (champion) vs LATEST (challenger).
     # If no staging exists (first run), show narrative about what happens.

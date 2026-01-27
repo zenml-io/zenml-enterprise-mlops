@@ -146,10 +146,10 @@ Benefits:
 
     print_section("🚀 Running Batch Inference")
 
-    # Ensure we're on default stack (or gcp-stack in production workspace)
-    print("  Setting stack to 'default'...")
-    subprocess.run(["zenml", "stack", "set", "default"], capture_output=True)
-    print("  ✅ Stack: default\n")
+    # Ensure we're on dev-stack
+    print("  Setting stack to 'dev-stack'...")
+    subprocess.run(["zenml", "stack", "set", "dev-stack"], capture_output=True)
+    print("  ✅ Stack: dev-stack\n")
 
     print("Executing: python run.py --pipeline batch_inference\n")
 

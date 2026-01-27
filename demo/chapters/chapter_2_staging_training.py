@@ -50,11 +50,11 @@ This is the outer loop - validate that local work runs in production-like infra.
   ┌─────────────────┬──────────────────┬──────────────────┐
   │ Setting         │ Local (Ch1)      │ Staging (Ch2)    │
   ├─────────────────┼──────────────────┼──────────────────┤
-  │ Stack           │ default (local)  │ staging-stack    │
+  │ Stack           │ dev-stack        │ staging-stack    │
   │ Orchestrator    │ Local            │ Vertex AI        │
-  │ Artifact Store  │ Local filesystem │ GCS              │
+  │ Artifact Store  │ GCS              │ GCS              │
+  │ Governance      │ DISABLED         │ ENABLED          │
   │ Cache           │ Enabled          │ Disabled         │
-  │ SMOTE           │ Disabled         │ Enabled          │
   │ Config          │ configs/local    │ configs/staging  │
   └─────────────────┴──────────────────┴──────────────────┘
 
@@ -125,17 +125,13 @@ This is the outer loop - validate that local work runs in production-like infra.
 """
         )
 
-    # Always run locally with staging config for the demo
-    print("  Setting stack to 'default' for fast local execution...")
-    subprocess.run(["zenml", "stack", "set", "default"], capture_output=True)
-    print("  ✅ Stack: default\n")
-
-    print("  Running: python run.py --pipeline training --environment staging")
-    print("  (Same code, staging CONFIG, local infrastructure)\n")
+    # Run with staging environment but on dev-stack for faster execution
+    print("  Running: python run.py --pipeline training --environment staging --stack dev-stack")
+    print("  (Staging config + governance, but local orchestrator for speed)\n")
 
     try:
         result = subprocess.run(
-            [sys.executable, "run.py", "--pipeline", "training", "--environment", "staging"],
+            [sys.executable, "run.py", "--pipeline", "training", "--environment", "staging", "--stack", "dev-stack"],
             capture_output=False,
             text=True,
             timeout=180,
@@ -149,30 +145,33 @@ This is the outer loop - validate that local work runs in production-like infra.
     except FileNotFoundError:
         print("\n⚠️  run.py not found")
 
-    print_section("📊 Staging CONFIG vs Local CONFIG")
+    print_section("📊 Local vs Staging: What Changed?")
     print(
         """
-We ran with staging CONFIG (configs/staging.yaml) on local infrastructure.
+We ran with STAGING environment (enable_governance=True).
 
-  WHAT'S DIFFERENT (staging config)
+  WHAT'S DIFFERENT FROM LOCAL (Ch1)
   ─────────────────────────────────
-  • Cache DISABLED - every step runs fresh
-  • SMOTE ENABLED - handles class imbalance
-  • Run tagged as "staging" + "pre-release"
-  • n_estimators=50, max_depth=5 (faster iteration)
+  • Governance steps ENABLED:
+    - validate_data_quality (checks missing values, min rows)
+    - validate_model_performance (checks accuracy, precision, recall)
+  • Model tagged with environment="staging" (not "local")
+  • Full 9-step DAG (vs 7 steps in local mode)
 
   WHAT'S THE SAME
   ───────────────
-  • Identical pipeline: src/pipelines/training.py
-  • Same governance hooks enforced
+  • Same pipeline code: src/pipelines/training.py
+  • Same governance hooks (MLflow logging, compliance)
   • Same Model Control Plane versioning
 
   IN CI/CD (train-staging.yml)
   ────────────────────────────
   • Would run on staging-stack (Vertex AI orchestrator)
-  • Artifacts stored in GCS (not local filesystem)
+  • Artifacts stored in GCS
   • Docker container built and pushed to GAR
-  • Production-like resource allocation
+
+  KEY DEMO POINT: Same code, different governance & stacks.
+  The model version now shows environment="staging" in metadata.
 
 Next: Let's compare this model against the current staging model →
 """

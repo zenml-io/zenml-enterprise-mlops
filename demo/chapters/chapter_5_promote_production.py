@@ -32,9 +32,14 @@ def run(two_workspace: bool = False):
 
 def _run_two_workspace():
     """Cross-workspace promotion: dev-staging → production."""
+    import subprocess
+
+    # Ensure we're on dev-stack
+    subprocess.run(["zenml", "stack", "set", "dev-stack"], capture_output=True)
 
     print_section("🎯 What We're Demonstrating")
-    print("  🔧 Workspace: enterprise-dev-staging → 🏭 enterprise-production\n")
+    print("  🔧 Workspace: enterprise-dev-staging → 🏭 enterprise-production")
+    print("  📦 Stack: dev-stack\n")
     print(
         """
 Cross-workspace model promotion exports a validated model from
@@ -179,8 +184,13 @@ Next: Let's run batch inference in the production workspace →
 
 def _run_single_workspace():
     """Fallback: within-workspace promotion (staging → production)."""
+    import subprocess
+
+    # Ensure we're on dev-stack
+    subprocess.run(["zenml", "stack", "set", "dev-stack"], capture_output=True)
 
     print_section("🎯 What We're Demonstrating")
+    print("  📦 Stack: dev-stack")
     print("  Mode: Single-Workspace (fallback)\n")
     print(
         """

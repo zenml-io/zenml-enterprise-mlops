@@ -46,25 +46,31 @@ from zenml.logger import get_logger
 logger = get_logger(__name__)
 
 
-def set_stack_for_environment(environment: str) -> None:
+def set_stack_for_environment(environment: str, stack_override: str | None = None) -> None:
     """Set the appropriate stack based on environment.
 
     Args:
         environment: Environment name (local, staging, production)
+        stack_override: Optional explicit stack name (overrides environment default)
     """
     client = Client()
-    stack_map = {
-        "local": "dev-stack",
-        "staging": "staging-stack",
-    }
 
-    stack_name = stack_map.get(environment)
+    # Use override if provided, otherwise map from environment
+    if stack_override:
+        stack_name = stack_override
+    else:
+        stack_map = {
+            "local": "dev-stack",  # GCS artifact store
+            "staging": "staging-stack",
+        }
+        stack_name = stack_map.get(environment)
+
     if stack_name:
         try:
             client.activate_stack(stack_name)
             logger.info(f"Activated stack: {stack_name}")
         except KeyError:
-            logger.warning(f"Stack '{stack_name}' not found, using current stack")
+            logger.warning(f"Stack '{stack_name}' not found, using current stack: {client.active_stack_model.name}")
 
 
 @click.command()
@@ -104,6 +110,12 @@ def set_stack_for_environment(environment: str) -> None:
     default=None,
     help="Minimum accuracy required for validation (overrides config)",
 )
+@click.option(
+    "--stack",
+    type=str,
+    default=None,
+    help="Stack to use (overrides environment default: local→dev-stack, staging→staging-stack)",
+)
 def main(
     pipeline: str,
     environment: str,
@@ -111,6 +123,7 @@ def main(
     n_estimators: int | None,
     max_depth: int | None,
     min_accuracy: float | None,
+    stack: str | None,
 ):
     """Run ZenML pipelines for patient readmission prediction.
 
@@ -123,8 +136,8 @@ def main(
     if pipeline == "training":
         from src.pipelines.training import training_pipeline
 
-        # Set stack based on environment
-        set_stack_for_environment(environment)
+        # Set stack based on environment (or use explicit override)
+        set_stack_for_environment(environment, stack_override=stack)
 
         # Build kwargs from CLI args (only include if explicitly set)
         kwargs = {"environment": environment}  # Always pass environment for tracking
@@ -152,19 +165,16 @@ def main(
             else:
                 training_pipeline(**kwargs)
 
-        logger.info("Training pipeline completed successfully!")
 
     elif pipeline == "batch_inference":
         from src.pipelines.batch_inference import batch_inference_pipeline
 
         batch_inference_pipeline()
-        logger.info("Batch inference pipeline completed successfully!")
 
     elif pipeline == "champion_challenger":
         from src.pipelines.champion_challenger import champion_challenger_pipeline
 
         champion_challenger_pipeline()
-        logger.info("Champion/Challenger comparison completed successfully!")
 
 
 if __name__ == "__main__":

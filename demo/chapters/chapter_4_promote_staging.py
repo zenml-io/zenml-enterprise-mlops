@@ -27,12 +27,12 @@ def print_section(title: str):
 def run():
     """Run Chapter 4: Promote to Staging."""
 
-    # Ensure we're on default stack
-    subprocess.run(["zenml", "stack", "set", "default"], capture_output=True)
+    # Ensure we're on dev-stack
+    subprocess.run(["zenml", "stack", "set", "dev-stack"], capture_output=True)
 
     print_section("🎯 What We're Demonstrating")
     print("  🔧 Workspace: enterprise-dev-staging")
-    print("  📦 Stack: default (promotion is a metadata operation, not a pipeline)")
+    print("  📦 Stack: dev-stack (promotion is a metadata operation, not a pipeline)")
     print(
         """
 The champion/challenger passed (Ch3). Now we merge the PR and promote.
