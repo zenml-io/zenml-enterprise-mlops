@@ -220,12 +220,15 @@ def export_model(
     )
 
     # Build training pipeline run URL
-    pipeline_run_ids = list(model_version.pipeline_run_ids or [])
+    # pipeline_run_ids is a dict: {run_name: UUID}
+    pipeline_run_ids = model_version.pipeline_run_ids or {}
     training_run_url = None
     if pipeline_run_ids:
+        # Get the first run UUID (value, not key which is the run name)
+        first_run_id = list(pipeline_run_ids.values())[0]
         training_run_url = (
             f"https://cloud.zenml.io/workspaces/{source_workspace}/"
-            f"projects/{project}/runs/{pipeline_run_ids[0]}?tab=overview"
+            f"projects/{project}/runs/{first_run_id}?tab=overview"
         )
 
     # Create export manifest

@@ -310,12 +310,15 @@ def promote_model(
         project_name = client.active_project.name
 
         # Build pipeline run URL (the training run that created this model)
-        pipeline_run_ids = list(model_version.pipeline_run_ids or [])
+        # pipeline_run_ids is a dict: {run_name: UUID}
+        pipeline_run_ids = model_version.pipeline_run_ids or {}
         training_run_url = None
         if pipeline_run_ids:
+            # Get the first run UUID (value, not key which is the run name)
+            first_run_id = list(pipeline_run_ids.values())[0]
             training_run_url = (
                 f"https://cloud.zenml.io/workspaces/{workspace}/"
-                f"projects/{project_name}/runs/{pipeline_run_ids[0]}?tab=overview"
+                f"projects/{project_name}/runs/{first_run_id}?tab=overview"
             )
 
         # Log promotion event to promotion_chain for full audit trail
