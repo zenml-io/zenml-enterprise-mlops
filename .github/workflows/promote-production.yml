@@ -34,7 +34,7 @@ jobs:
       model_version: ${{ steps.version.outputs.version }}
     env:
       # 2-Workspace Architecture: Connect to dev-staging for export
-      ZENML_STORE_URL: ${{ secrets.ZENML_DEV_STAGING_STORE_URL }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_DEV_STAGING_URL }}
       ZENML_STORE_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
       ZENML_PROJECT: cancer-detection
 
@@ -103,7 +103,7 @@ jobs:
       name: production  # GitHub environment with approval gate
     env:
       # 2-Workspace Architecture: Connect to production for import
-      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_STORE_URL }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_URL }}
       ZENML_STORE_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: gcp-stack
@@ -164,7 +164,7 @@ jobs:
     needs: import-model
     runs-on: ubuntu-latest
     env:
-      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_STORE_URL }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_URL }}
       ZENML_STORE_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: gcp-stack

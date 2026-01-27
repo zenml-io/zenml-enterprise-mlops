@@ -1,31 +1,32 @@
-# GCP Development Stack (Local Orchestrator + Cloud Artifact Store)
-# This provisions GCP infrastructure for fast local development iteration
-# while using cloud storage for artifact persistence.
+# GCP Development Stack (Local Orchestrator + Cloud Infrastructure)
+# Using ZenML Terraform Provider directly for full label control
 #
 # Workspace: enterprise-dev-staging
 # Stack Name: dev-stack
 #
 # Features:
 # - Local orchestrator (fast iteration, no Vertex AI costs)
-# - GCS for artifact storage (shared with staging for model access)
+# - GCS for artifact storage
 # - Artifact Registry for container images
-# - Service account for GCP access
+# - Full label control on all ZenML resources
 
 terraform {
-  required_version = ">= 1.9"
+  required_version = ">= 1.0"
 
   required_providers {
     google = {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    zenml = {
+      source  = "zenml-io/zenml"
+      version = "~> 3.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
-
-  # OPTIONAL: Use remote backend for state
-  # backend "gcs" {
-  #   bucket = "your-terraform-state-bucket"
-  #   prefix = "zenml/development/gcp"
-  # }
 }
 
 provider "google" {
@@ -33,25 +34,27 @@ provider "google" {
   region  = var.region
 }
 
+provider "zenml" {
+  server_url = var.zenml_server_url
+  api_key    = var.zenml_api_key
+}
+
 # =============================================================================
-# ZenML Stack Module (Local Orchestrator)
+# Local Variables
 # =============================================================================
 
-module "zenml_stack" {
-  source  = "zenml-io/zenml-stack/gcp"
-  version = "~> 0.1"
+locals {
+  # Common labels for ZenML resources
+  zenml_labels = {
+    environment = "development"
+    workspace   = "enterprise-dev-staging"
+    team        = var.team_name
+    cost_center = var.cost_center
+    managed_by  = "terraform"
+  }
 
-  # Stack configuration
-  zenml_stack_name            = var.stack_name
-  zenml_stack_deployment_name = var.deployment_name
-  orchestrator                = "local" # Local for fast iteration
-
-  # GCP-specific settings
-  project_id = var.project_id
-  region     = var.region
-
-  # Labels for resource management and cost tracking
-  labels = merge(var.labels, {
+  # Common labels for GCP resources
+  gcp_labels = merge(var.labels, {
     environment = "development"
     workspace   = "enterprise-dev-staging"
     managed_by  = "terraform"
@@ -61,62 +64,192 @@ module "zenml_stack" {
 }
 
 # =============================================================================
+# Random suffix for unique resource names
+# =============================================================================
+
+resource "random_id" "suffix" {
+  byte_length = 4  # 8 hex chars to keep service account ID under 30 chars
+}
+
+# =============================================================================
+# GCP Infrastructure
+# =============================================================================
+
+# GCS Bucket for artifacts
+resource "google_storage_bucket" "artifact_store" {
+  name     = "${var.project_id}-${var.stack_name}-${random_id.suffix.hex}"
+  project  = var.project_id
+  location = var.region
+
+  uniform_bucket_level_access = true
+  force_destroy               = true
+
+  labels = local.gcp_labels
+}
+
+# Artifact Registry for container images
+resource "google_artifact_registry_repository" "container_registry" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = "${var.stack_name}-${random_id.suffix.hex}"
+  format        = "DOCKER"
+
+  labels = local.gcp_labels
+}
+
+# Service Account for ZenML
+resource "google_service_account" "zenml_sa" {
+  project      = var.project_id
+  account_id   = "zenml-${var.stack_name}-${random_id.suffix.hex}"
+  display_name = "ZenML ${var.stack_name} Service Account"
+}
+
+# Service Account Key
+resource "google_service_account_key" "zenml_sa_key" {
+  service_account_id = google_service_account.zenml_sa.name
+}
+
+# IAM: Storage Admin on the bucket
+resource "google_storage_bucket_iam_member" "zenml_sa_storage" {
+  bucket = google_storage_bucket.artifact_store.name
+  role   = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.zenml_sa.email}"
+}
+
+# IAM: Artifact Registry Writer
+resource "google_artifact_registry_repository_iam_member" "zenml_sa_ar" {
+  project    = var.project_id
+  location   = var.region
+  repository = google_artifact_registry_repository.container_registry.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.zenml_sa.email}"
+}
+
+# =============================================================================
+# ZenML Service Connector
+# =============================================================================
+
+resource "zenml_service_connector" "gcp" {
+  name        = "${var.stack_name}-gcp-connector"
+  type        = "gcp"
+  auth_method = "service-account"
+
+  configuration = {
+    project_id           = var.project_id
+    region               = var.region
+    service_account_json = base64decode(google_service_account_key.zenml_sa_key.private_key)
+  }
+
+  labels = local.zenml_labels
+}
+
+# =============================================================================
+# ZenML Stack Components
+# =============================================================================
+
+# Artifact Store
+resource "zenml_stack_component" "artifact_store" {
+  name   = "${var.stack_name}-gcs"
+  type   = "artifact_store"
+  flavor = "gcp"
+
+  configuration = {
+    path = "gs://${google_storage_bucket.artifact_store.name}"
+  }
+
+  connector_id = zenml_service_connector.gcp.id
+  labels       = local.zenml_labels
+}
+
+# Container Registry
+resource "zenml_stack_component" "container_registry" {
+  name   = "${var.stack_name}-gar"
+  type   = "container_registry"
+  flavor = "gcp"
+
+  configuration = {
+    uri = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.container_registry.repository_id}"
+  }
+
+  connector_id = zenml_service_connector.gcp.id
+  labels       = local.zenml_labels
+}
+
+# Orchestrator (local/default for dev)
+resource "zenml_stack_component" "orchestrator" {
+  name   = "${var.stack_name}-local"
+  type   = "orchestrator"
+  flavor = "local"
+
+  configuration = {}
+
+  labels = local.zenml_labels
+}
+
+# =============================================================================
+# ZenML Stack
+# =============================================================================
+
+resource "zenml_stack" "dev_stack" {
+  name = var.stack_name
+
+  components = {
+    artifact_store     = zenml_stack_component.artifact_store.id
+    container_registry = zenml_stack_component.container_registry.id
+    orchestrator       = zenml_stack_component.orchestrator.id
+  }
+
+  labels = local.zenml_labels
+}
+
+# =============================================================================
 # Outputs
 # =============================================================================
 
 output "zenml_stack_id" {
   description = "The ID of the registered ZenML stack"
-  value       = module.zenml_stack.zenml_stack_id
+  value       = zenml_stack.dev_stack.id
 }
 
 output "zenml_stack_name" {
   description = "The name of the registered ZenML stack"
-  value       = module.zenml_stack.zenml_stack_name
+  value       = zenml_stack.dev_stack.name
 }
 
-output "gcs_artifact_store_path" {
-  description = "GCS path for artifact storage"
-  value       = module.zenml_stack.gcs_artifact_store_path
+output "gcs_bucket" {
+  description = "GCS bucket for artifacts"
+  value       = google_storage_bucket.artifact_store.name
 }
 
-output "artifact_registry_uri" {
-  description = "Artifact Registry URI for container images"
-  value       = module.zenml_stack.artifact_registry_uri
+output "container_registry" {
+  description = "Artifact Registry repository"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.container_registry.repository_id}"
 }
 
-output "service_account_email" {
-  description = "Service account used by ZenML pipelines"
-  value       = module.zenml_stack.service_account_email
+output "service_account" {
+  description = "Service account for ZenML workloads"
+  value       = google_service_account.zenml_sa.email
 }
 
 output "post_deployment_instructions" {
   description = "Steps to activate the development stack"
   value       = <<-EOT
-    ✅ Development Stack deployed successfully!
+    Development Stack deployed successfully!
 
     Stack Details:
     - Name: ${var.stack_name}
-    - Orchestrator: local (fast iteration)
+    - Orchestrator: local
     - Workspace: enterprise-dev-staging
-    - Artifact Store: ${module.zenml_stack.gcs_artifact_store_path}
+
+    Labels applied to all ZenML resources:
+    - environment: development
+    - team: ${var.team_name}
+    - cost_center: ${var.cost_center}
 
     Next steps:
-    1. Connect to the dev-staging workspace:
-       zenml login enterprise-dev-staging
-
-    2. Set the project:
-       zenml project set cancer-detection
-
-    3. Activate the stack:
-       zenml stack set ${var.stack_name}
-
-    4. Verify the stack:
-       zenml stack describe ${var.stack_name}
-
-    5. Run a local training pipeline:
-       python run.py --pipeline training --environment local
-
-    Note: This stack uses a local orchestrator for fast iteration.
-    For production-like testing, use the staging-stack with Vertex AI.
+    1. Source workspace: source scripts/use-workspace.sh dev-staging
+    2. Set the project: zenml project set cancer-detection
+    3. Activate the stack: zenml stack set ${var.stack_name}
+    4. Verify: zenml stack describe ${var.stack_name}
   EOT
 }

@@ -1,43 +1,42 @@
-# Example terraform.tfvars for Development Stack
-# Copy this to terraform.tfvars and customize for your environment
+# Development Stack Configuration
+# Copy to terraform.tfvars and fill in values
 #
 # Usage:
 #   cp terraform.tfvars.example terraform.tfvars
-#   # Edit values below
-#   terraform init
-#   terraform plan
-#   terraform apply
+#   source scripts/use-workspace.sh dev-staging  # Sets ZenML credentials
+#   terraform init && terraform apply
 
 # =============================================================================
 # Required: GCP Project
 # =============================================================================
 
-project_id = "zenml-core"  # Your GCP project ID
+project_id = "zenml-core"
 
 # =============================================================================
-# Stack Configuration
+# Stack Configuration (defaults shown, override as needed)
 # =============================================================================
 
-region          = "us-central1"
-stack_name      = "dev-stack"
-deployment_name = "zenml-development"
+# region     = "us-central1"
+# stack_name = "dev-stack"
 
 # =============================================================================
 # Cost Tracking
 # =============================================================================
 
-team_name   = "data-science"
-cost_center = "ml-platform"
+# team_name   = "data-science"
+# cost_center = "ml-platform"
 
+# Additional GCP resource labels
 labels = {
-  owner       = "platform-team"
-  purpose     = "ml-development"
-  workspace   = "enterprise-dev-staging"
+  owner   = "platform-team"
+  purpose = "ml-development"
 }
 
 # =============================================================================
-# ZenML Connection (Set via environment variables)
+# ZenML Connection
 # =============================================================================
-# Before running terraform, set:
-#   export ZENML_SERVER_URL="https://enterprise-dev-staging.cloud.zenml.io"
-#   export ZENML_API_KEY="your-api-key"
+# Set via environment variables (recommended):
+#   source scripts/use-workspace.sh dev-staging
+#
+# This sets TF_VAR_zenml_server_url and TF_VAR_zenml_api_key automatically.
+# Do NOT put credentials in this file.

@@ -1,77 +1,42 @@
-# Example terraform.tfvars for GCP Staging Stack
-# Copy to terraform.tfvars and customize for your environment
-# DO NOT commit terraform.tfvars - it contains sensitive values
+# Staging Stack Configuration
+# Copy to terraform.tfvars and fill in values
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   source scripts/use-workspace.sh dev-staging  # Sets ZenML credentials
+#   terraform init && terraform apply
 
 # =============================================================================
 # Required: GCP Project
 # =============================================================================
 
-project_id = "your-gcp-project-staging"  # e.g., "hca-dsa-o8x-staging"
-region     = "us-central1"
+project_id = "zenml-core"
 
 # =============================================================================
-# ZenML Stack Configuration
+# Stack Configuration (defaults shown, override as needed)
 # =============================================================================
 
-stack_name      = "gcp-staging"
-deployment_name = "zenml-staging"
-
-# Orchestrator: "vertex" for Vertex AI Pipelines (recommended for GCP)
-# Options: vertex, airflow, skypilot, local
-orchestrator = "vertex"
+# region     = "us-central1"
+# stack_name = "staging-stack"
 
 # =============================================================================
-# Cost Tracking (Important for enterprise billing)
+# Cost Tracking
 # =============================================================================
 
-team_name   = "ml-platform"
-cost_center = "engineering"
+# team_name   = "data-science"
+# cost_center = "ml-platform"
 
+# Additional GCP resource labels
 labels = {
-  business_unit = "data-science"
-  owner         = "mlops-team"
-  compliance    = "hipaa"  # Add compliance tags as needed
+  owner   = "platform-team"
+  purpose = "ml-staging"
 }
 
 # =============================================================================
-# Existing Infrastructure (Optional)
+# ZenML Connection
 # =============================================================================
-
-# Use existing GCS bucket instead of creating new one
-# existing_gcs_bucket = "your-existing-ml-artifacts-bucket"
-
-# Grant ZenML access to BigQuery datasets for data loading
-# bigquery_dataset = "your_ml_dataset"
-
-# =============================================================================
-# Workload Identity Federation (Recommended for CI/CD)
-# =============================================================================
-
-# Enable keyless authentication from GitHub Actions
-# This eliminates the need for service account keys
-enable_workload_identity = false  # Set to true and configure below
-
-# Required if enable_workload_identity = true:
-# github_org  = "your-github-org"
-# github_repo = "your-ml-pipelines-repo"
-
-# =============================================================================
-# Before Running Terraform
-# =============================================================================
+# Set via environment variables (recommended):
+#   source scripts/use-workspace.sh dev-staging
 #
-# 1. Authenticate with GCP:
-#    gcloud auth application-default login
-#
-# 2. Set ZenML server connection:
-#    export ZENML_SERVER_URL="https://your-zenml-server.com"
-#    export ZENML_API_KEY="<your-service-account-api-key>"
-#
-# 3. Enable required GCP APIs:
-#    gcloud services enable aiplatform.googleapis.com
-#    gcloud services enable artifactregistry.googleapis.com
-#    gcloud services enable storage.googleapis.com
-#
-# 4. Run Terraform:
-#    terraform init
-#    terraform plan
-#    terraform apply
+# This sets TF_VAR_zenml_server_url and TF_VAR_zenml_api_key automatically.
+# Do NOT put credentials in this file.

@@ -48,9 +48,9 @@ Usage:
         --import-from gs://zenml-core-model-exchange/exports/...
 
 Environment Variables (can also be set in .env file):
-    ZENML_DEV_STAGING_STORE_URL: URL for dev-staging workspace
+    ZENML_DEV_STAGING_URL: URL for dev-staging workspace
     ZENML_DEV_STAGING_API_KEY: API key for dev-staging workspace
-    ZENML_PRODUCTION_STORE_URL: URL for production workspace
+    ZENML_PRODUCTION_URL: URL for production workspace
     ZENML_PRODUCTION_API_KEY: API key for production workspace
     MODEL_EXCHANGE_BUCKET: GCS bucket for model exchange (default: zenml-core-model-exchange)
     GCP_PROJECT_ID: GCP project ID (default: zenml-core)
@@ -83,12 +83,12 @@ DEFAULT_GCP_PROJECT = os.getenv("GCP_PROJECT_ID", "zenml-core")
 
 WORKSPACE_CONFIG = {
     "enterprise-dev-staging": {
-        "url_env": "ZENML_DEV_STAGING_STORE_URL",
+        "url_env": "ZENML_DEV_STAGING_URL",
         "api_key_env": "ZENML_DEV_STAGING_API_KEY",
         "project": os.getenv("ZENML_PROJECT", "cancer-detection"),
     },
     "enterprise-production": {
-        "url_env": "ZENML_PRODUCTION_STORE_URL",
+        "url_env": "ZENML_PRODUCTION_URL",
         "api_key_env": "ZENML_PRODUCTION_API_KEY",
         "project": os.getenv("ZENML_PROJECT", "cancer-detection"),
     },

@@ -1,12 +1,19 @@
-# Shared GCP Resources for Cross-Workspace Model Promotion
+# Shared Model Exchange Bucket
+# Enables cross-workspace model promotion between dev-staging and production
 #
-# This creates a shared GCS bucket used for model export/import between
-# the enterprise-dev-staging and enterprise-production workspaces.
+# Usage:
+#   1. First deploy the environment stacks (dev, staging, production)
+#   2. Then deploy this shared bucket with the service account emails:
 #
-# Models are exported from dev-staging, stored here, then imported to production.
+#   terraform init
+#   terraform apply \
+#     -var="staging_service_account=zenml-staging-stack-xxx@zenml-core.iam.gserviceaccount.com" \
+#     -var="production_service_account=zenml-gcp-stack-xxx@zenml-core.iam.gserviceaccount.com"
+#
+# Note: No ZenML connection needed - just GCP resources.
 
 terraform {
-  required_version = ">= 1.9"
+  required_version = ">= 1.0"
 
   required_providers {
     google = {
@@ -14,12 +21,6 @@ terraform {
       version = "~> 5.0"
     }
   }
-
-  # RECOMMENDED: Use remote backend for shared state
-  # backend "gcs" {
-  #   bucket = "your-terraform-state-bucket"
-  #   prefix = "zenml/shared/gcp"
-  # }
 }
 
 provider "google" {
@@ -38,15 +39,10 @@ resource "google_storage_bucket" "model_exchange" {
 
   uniform_bucket_level_access = true
 
-  # Enable versioning for audit trail
-  versioning {
-    enabled = true
-  }
-
-  # Lifecycle rules for cleanup
+  # Clean up old exports after retention period
   lifecycle_rule {
     condition {
-      age = var.export_retention_days
+      age = var.retention_days
     }
     action {
       type = "Delete"
@@ -61,22 +57,20 @@ resource "google_storage_bucket" "model_exchange" {
 }
 
 # =============================================================================
-# IAM: Grant access to workspace service accounts
+# IAM: Grant service accounts access to the model exchange bucket
 # =============================================================================
 
-# Dev-staging workspace service account (export models)
-resource "google_storage_bucket_iam_member" "dev_staging_access" {
-  count = var.dev_staging_service_account != "" ? 1 : 0
-
+# Staging service account (from enterprise-dev-staging workspace)
+resource "google_storage_bucket_iam_member" "staging_access" {
+  count  = var.staging_service_account != "" ? 1 : 0
   bucket = google_storage_bucket.model_exchange.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${var.dev_staging_service_account}"
+  member = "serviceAccount:${var.staging_service_account}"
 }
 
-# Production workspace service account (import models)
+# Production service account (from enterprise-production workspace)
 resource "google_storage_bucket_iam_member" "production_access" {
-  count = var.production_service_account != "" ? 1 : 0
-
+  count  = var.production_service_account != "" ? 1 : 0
   bucket = google_storage_bucket.model_exchange.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${var.production_service_account}"
@@ -92,44 +86,31 @@ output "bucket_name" {
 }
 
 output "bucket_url" {
-  description = "GCS URL of the model exchange bucket"
+  description = "GCS URL for model exchange"
   value       = "gs://${google_storage_bucket.model_exchange.name}"
 }
 
-output "export_path_template" {
-  description = "Template for model export paths"
-  value       = "gs://${google_storage_bucket.model_exchange.name}/exports/{model_name}/{timestamp}/"
-}
-
-output "post_deployment_instructions" {
-  description = "Instructions for using the model exchange bucket"
+output "usage_instructions" {
+  description = "How to use the model exchange bucket"
   value       = <<-EOT
-    ✅ Model Exchange Bucket created successfully!
+    Model Exchange Bucket: ${google_storage_bucket.model_exchange.name}
 
-    Bucket: gs://${google_storage_bucket.model_exchange.name}
+    This bucket enables cross-workspace model promotion:
 
-    Usage:
-    1. Export model from dev-staging workspace:
+    1. Export model from staging (enterprise-dev-staging):
        python scripts/promote_cross_workspace.py \
          --model breast_cancer_classifier \
          --source-workspace enterprise-dev-staging \
          --export-only
 
-    2. Import model to production workspace:
+    2. Import model to production (enterprise-production):
        python scripts/promote_cross_workspace.py \
          --model breast_cancer_classifier \
          --dest-workspace enterprise-production \
          --import-from gs://${google_storage_bucket.model_exchange.name}/exports/...
 
-    Export Structure:
-    gs://${google_storage_bucket.model_exchange.name}/
-    └── exports/
-        └── breast_cancer_classifier/
-            └── 2026-01-26T12:00:00/
-                ├── model.joblib
-                ├── scaler.joblib
-                └── manifest.json (metadata, metrics, lineage)
-
-    Note: Exports are automatically deleted after ${var.export_retention_days} days.
+    Service accounts with access:
+    - Staging: ${var.staging_service_account != "" ? var.staging_service_account : "Not configured"}
+    - Production: ${var.production_service_account != "" ? var.production_service_account : "Not configured"}
   EOT
 }

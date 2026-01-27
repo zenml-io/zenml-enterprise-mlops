@@ -1,15 +1,37 @@
-# Example terraform.tfvars for Shared Model Exchange Bucket
-# Copy to terraform.tfvars and customize
+# Shared Model Exchange Bucket Configuration
+# This bucket enables cross-workspace model promotion
+#
+# Usage:
+#   1. First deploy the environment stacks (staging, production)
+#   2. Get the service account emails from stack outputs
+#   3. Deploy this bucket with the service accounts
+#
+#   terraform init
+#   terraform apply
+
+# =============================================================================
+# GCP Configuration
+# =============================================================================
 
 project_id  = "zenml-core"
 region      = "us-central1"
 bucket_name = "zenml-core-model-exchange"
 
-# Retention period for exports (days)
-export_retention_days = 90
+# Days to retain exported models before cleanup
+retention_days = 90
 
-# Service accounts (get these from the stack deployments)
-# Run: terraform output service_account_email
-# in the development and production directories
-dev_staging_service_account = ""  # e.g., zenml-development-sa@zenml-core.iam.gserviceaccount.com
-production_service_account  = ""  # e.g., zenml-production-sa@zenml-core.iam.gserviceaccount.com
+# =============================================================================
+# Service Account Access
+# =============================================================================
+# Get these from the stack terraform outputs:
+#
+#   cd ../environments/staging/gcp
+#   terraform output service_account
+#   # Output: zenml-staging-stack-xxxxxxxx@zenml-core.iam.gserviceaccount.com
+#
+#   cd ../environments/production/gcp
+#   terraform output service_account
+#   # Output: zenml-gcp-stack-xxxxxxxx@zenml-core.iam.gserviceaccount.com
+
+staging_service_account    = ""  # e.g., zenml-staging-stack-5469573c@zenml-core.iam.gserviceaccount.com
+production_service_account = ""  # e.g., zenml-gcp-stack-2f902e25@zenml-core.iam.gserviceaccount.com

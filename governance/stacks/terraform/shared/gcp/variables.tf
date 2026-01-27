@@ -1,20 +1,18 @@
-# Variables for Shared GCP Resources
+# Variables for Shared Model Exchange Bucket
+# Configure these after deploying the environment stacks
 
 # =============================================================================
-# Required Variables
+# GCP Configuration
 # =============================================================================
 
 variable "project_id" {
   description = "GCP Project ID"
   type        = string
+  default     = "zenml-core"
 }
 
-# =============================================================================
-# Bucket Configuration
-# =============================================================================
-
 variable "region" {
-  description = "GCP region for the bucket"
+  description = "GCP region"
   type        = string
   default     = "us-central1"
 }
@@ -25,24 +23,27 @@ variable "bucket_name" {
   default     = "zenml-core-model-exchange"
 }
 
-variable "export_retention_days" {
-  description = "Days to retain model exports before automatic deletion"
+variable "retention_days" {
+  description = "Days to retain exported models before cleanup"
   type        = number
   default     = 90
 }
 
 # =============================================================================
-# Service Account Configuration
+# Service Account Access
+# Get these from the stack terraform outputs:
+#   terraform -chdir=../environments/staging/gcp output service_account
+#   terraform -chdir=../environments/production/gcp output service_account
 # =============================================================================
 
-variable "dev_staging_service_account" {
-  description = "Service account email for dev-staging workspace (leave empty to skip)"
+variable "staging_service_account" {
+  description = "Service account email from staging stack (for cross-workspace access)"
   type        = string
   default     = ""
 }
 
 variable "production_service_account" {
-  description = "Service account email for production workspace (leave empty to skip)"
+  description = "Service account email from production stack (for cross-workspace access)"
   type        = string
   default     = ""
 }

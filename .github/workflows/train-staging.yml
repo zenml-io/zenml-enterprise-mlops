@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # 2-Workspace Architecture: ZenML auto-connects using these env vars
-      ZENML_STORE_URL: ${{ secrets.ZENML_DEV_STAGING_STORE_URL }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_DEV_STAGING_URL }}
       ZENML_STORE_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: staging-stack

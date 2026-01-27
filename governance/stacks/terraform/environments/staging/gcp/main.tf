@@ -1,28 +1,32 @@
-# GCP Staging Stack with Vertex AI
-# This provisions GCP infrastructure AND registers the stack with ZenML
+# GCP Staging Stack (Vertex AI Orchestrator)
+# Using ZenML Terraform Provider directly for full label control
 #
-# Features demonstrated:
-# - Vertex AI Pipelines as orchestrator
-# - GCS for artifact storage (can use existing bucket)
+# Workspace: enterprise-dev-staging
+# Stack Name: staging-stack
+#
+# Features:
+# - Vertex AI orchestrator (production-like environment)
+# - GCS for artifact storage
 # - Artifact Registry for container images
-# - Workload Identity Federation for authentication
-# - BigQuery integration for data access
+# - Full label control on all ZenML resources
 
 terraform {
-  required_version = ">= 1.9"
+  required_version = ">= 1.0"
 
   required_providers {
     google = {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    zenml = {
+      source  = "zenml-io/zenml"
+      version = "~> 3.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
-
-  # RECOMMENDED: Use remote backend for state
-  # backend "gcs" {
-  #   bucket = "your-terraform-state-bucket"
-  #   prefix = "zenml/staging/gcp"
-  # }
 }
 
 provider "google" {
@@ -30,26 +34,29 @@ provider "google" {
   region  = var.region
 }
 
+provider "zenml" {
+  server_url = var.zenml_server_url
+  api_key    = var.zenml_api_key
+}
+
 # =============================================================================
-# OPTION 1: Use Official ZenML Module (Recommended for new setups)
+# Local Variables
 # =============================================================================
 
-module "zenml_stack" {
-  source  = "zenml-io/zenml-stack/gcp"
-  version = "~> 0.1"
-
-  # Stack configuration
-  zenml_stack_name            = var.stack_name
-  zenml_stack_deployment_name = var.deployment_name
-  orchestrator                = var.orchestrator # "vertex" for Vertex AI
-
-  # GCP-specific settings
-  project_id = var.project_id
-  region     = var.region
-
-  # Labels for resource management and cost tracking
-  labels = merge(var.labels, {
+locals {
+  # Common labels for ZenML resources
+  zenml_labels = {
     environment = "staging"
+    workspace   = "enterprise-dev-staging"
+    team        = var.team_name
+    cost_center = var.cost_center
+    managed_by  = "terraform"
+  }
+
+  # Common labels for GCP resources
+  gcp_labels = merge(var.labels, {
+    environment = "staging"
+    workspace   = "enterprise-dev-staging"
     managed_by  = "terraform"
     team        = var.team_name
     cost_center = var.cost_center
@@ -57,79 +64,162 @@ module "zenml_stack" {
 }
 
 # =============================================================================
-# OPTION 2: Use Existing GCS Bucket (For organizations with existing infra)
+# Random suffix for unique resource names
 # =============================================================================
 
-# If you have existing GCS buckets, you can register them with ZenML directly
-# instead of creating new ones. Uncomment and configure:
-
-# resource "zenml_stack_component" "existing_artifact_store" {
-#   name   = "existing-gcs-store"
-#   type   = "artifact_store"
-#   flavor = "gcp"
-#
-#   configuration = {
-#     path = "gs://${var.existing_gcs_bucket}/zenml-artifacts"
-#   }
-# }
+resource "random_id" "suffix" {
+  byte_length = 4  # 8 hex chars to keep service account ID under 30 chars
+}
 
 # =============================================================================
-# BigQuery Integration (For data access)
+# GCP Infrastructure
 # =============================================================================
 
-# Grant ZenML service account access to BigQuery datasets
-resource "google_bigquery_dataset_iam_member" "zenml_reader" {
-  count = var.bigquery_dataset != "" ? 1 : 0
+# GCS Bucket for artifacts
+resource "google_storage_bucket" "artifact_store" {
+  name     = "${var.project_id}-${var.stack_name}-${random_id.suffix.hex}"
+  project  = var.project_id
+  location = var.region
 
-  dataset_id = var.bigquery_dataset
+  uniform_bucket_level_access = true
+  force_destroy               = true
+
+  labels = local.gcp_labels
+}
+
+# Artifact Registry for container images
+resource "google_artifact_registry_repository" "container_registry" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = "${var.stack_name}-${random_id.suffix.hex}"
+  format        = "DOCKER"
+
+  labels = local.gcp_labels
+}
+
+# Service Account for ZenML
+resource "google_service_account" "zenml_sa" {
+  project      = var.project_id
+  account_id   = "zenml-${var.stack_name}-${random_id.suffix.hex}"
+  display_name = "ZenML ${var.stack_name} Service Account"
+}
+
+# Service Account Key
+resource "google_service_account_key" "zenml_sa_key" {
+  service_account_id = google_service_account.zenml_sa.name
+}
+
+# IAM: Storage Admin on the bucket
+resource "google_storage_bucket_iam_member" "zenml_sa_storage" {
+  bucket = google_storage_bucket.artifact_store.name
+  role   = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.zenml_sa.email}"
+}
+
+# IAM: Artifact Registry Writer
+resource "google_artifact_registry_repository_iam_member" "zenml_sa_ar" {
   project    = var.project_id
-  role       = "roles/bigquery.dataViewer"
-  member     = "serviceAccount:${module.zenml_stack.service_account_email}"
+  location   = var.region
+  repository = google_artifact_registry_repository.container_registry.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.zenml_sa.email}"
+}
+
+# IAM: Vertex AI User (for submitting pipeline jobs)
+resource "google_project_iam_member" "zenml_sa_vertex_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.zenml_sa.email}"
+}
+
+# IAM: Vertex AI Service Agent (for running pipelines)
+resource "google_project_iam_member" "zenml_sa_vertex_agent" {
+  project = var.project_id
+  role    = "roles/aiplatform.serviceAgent"
+  member  = "serviceAccount:${google_service_account.zenml_sa.email}"
 }
 
 # =============================================================================
-# Workload Identity Federation (For GitHub Actions CI/CD)
+# ZenML Service Connector
 # =============================================================================
 
-# This allows GitHub Actions to authenticate to GCP without service account keys
-resource "google_iam_workload_identity_pool" "github_pool" {
-  count = var.enable_workload_identity ? 1 : 0
+resource "zenml_service_connector" "gcp" {
+  name        = "${var.stack_name}-gcp-connector"
+  type        = "gcp"
+  auth_method = "service-account"
 
-  workload_identity_pool_id = "github-actions-pool"
-  display_name              = "GitHub Actions Pool"
-  description               = "Identity pool for GitHub Actions CI/CD"
-  project                   = var.project_id
-}
-
-resource "google_iam_workload_identity_pool_provider" "github_provider" {
-  count = var.enable_workload_identity ? 1 : 0
-
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github_pool[0].workload_identity_pool_id
-  workload_identity_pool_provider_id = "github-provider"
-  display_name                       = "GitHub Provider"
-  project                            = var.project_id
-
-  attribute_mapping = {
-    "google.subject"       = "assertion.sub"
-    "attribute.actor"      = "assertion.actor"
-    "attribute.repository" = "assertion.repository"
+  configuration = {
+    project_id           = var.project_id
+    region               = var.region
+    service_account_json = base64decode(google_service_account_key.zenml_sa_key.private_key)
   }
 
-  oidc {
-    issuer_uri = "https://token.actions.githubusercontent.com"
-  }
-
-  # Restrict to your GitHub organization/repository
-  attribute_condition = "assertion.repository_owner == '${var.github_org}'"
+  labels = local.zenml_labels
 }
 
-# Allow GitHub Actions to impersonate the ZenML service account
-resource "google_service_account_iam_member" "github_impersonation" {
-  count = var.enable_workload_identity ? 1 : 0
+# =============================================================================
+# ZenML Stack Components
+# =============================================================================
 
-  service_account_id = module.zenml_stack.service_account_id
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool[0].name}/attribute.repository/${var.github_org}/${var.github_repo}"
+# Artifact Store
+resource "zenml_stack_component" "artifact_store" {
+  name   = "${var.stack_name}-gcs"
+  type   = "artifact_store"
+  flavor = "gcp"
+
+  configuration = {
+    path = "gs://${google_storage_bucket.artifact_store.name}"
+  }
+
+  connector_id = zenml_service_connector.gcp.id
+  labels       = local.zenml_labels
+}
+
+# Container Registry
+resource "zenml_stack_component" "container_registry" {
+  name   = "${var.stack_name}-gar"
+  type   = "container_registry"
+  flavor = "gcp"
+
+  configuration = {
+    uri = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.container_registry.repository_id}"
+  }
+
+  connector_id = zenml_service_connector.gcp.id
+  labels       = local.zenml_labels
+}
+
+# Vertex AI Orchestrator
+resource "zenml_stack_component" "orchestrator" {
+  name   = "${var.stack_name}-vertex"
+  type   = "orchestrator"
+  flavor = "vertex"
+
+  configuration = {
+    location                 = var.region
+    project                  = var.project_id
+    workload_service_account = google_service_account.zenml_sa.email
+    synchronous              = "true"
+  }
+
+  connector_id = zenml_service_connector.gcp.id
+  labels       = local.zenml_labels
+}
+
+# =============================================================================
+# ZenML Stack
+# =============================================================================
+
+resource "zenml_stack" "staging_stack" {
+  name = var.stack_name
+
+  components = {
+    artifact_store     = zenml_stack_component.artifact_store.id
+    container_registry = zenml_stack_component.container_registry.id
+    orchestrator       = zenml_stack_component.orchestrator.id
+  }
+
+  labels = local.zenml_labels
 }
 
 # =============================================================================
@@ -138,73 +228,43 @@ resource "google_service_account_iam_member" "github_impersonation" {
 
 output "zenml_stack_id" {
   description = "The ID of the registered ZenML stack"
-  value       = module.zenml_stack.zenml_stack_id
+  value       = zenml_stack.staging_stack.id
 }
 
 output "zenml_stack_name" {
   description = "The name of the registered ZenML stack"
-  value       = module.zenml_stack.zenml_stack_name
+  value       = zenml_stack.staging_stack.name
 }
 
-output "gcs_artifact_store_path" {
-  description = "GCS path for artifact storage"
-  value       = module.zenml_stack.gcs_artifact_store_path
+output "gcs_bucket" {
+  description = "GCS bucket for artifacts"
+  value       = google_storage_bucket.artifact_store.name
 }
 
-output "artifact_registry_uri" {
-  description = "Artifact Registry URI for container images"
-  value       = module.zenml_stack.artifact_registry_uri
-}
-
-output "service_account_email" {
-  description = "Service account used by ZenML pipelines"
-  value       = module.zenml_stack.service_account_email
-}
-
-output "workload_identity_provider" {
-  description = "Workload Identity provider for GitHub Actions"
-  value       = var.enable_workload_identity ? google_iam_workload_identity_pool_provider.github_provider[0].name : null
-}
-
-output "github_actions_setup" {
-  description = "Configuration for GitHub Actions"
-  value = var.enable_workload_identity ? join("\n", [
-    "# Add to your GitHub Actions workflow:",
-    "",
-    "- name: Authenticate to Google Cloud",
-    "  uses: google-github-actions/auth@v2",
-    "  with:",
-    "    workload_identity_provider: ${google_iam_workload_identity_pool_provider.github_provider[0].name}",
-    "    service_account: ${module.zenml_stack.service_account_email}"
-  ]) : "Workload Identity not enabled"
+output "service_account" {
+  description = "Service account for Vertex AI workloads"
+  value       = google_service_account.zenml_sa.email
 }
 
 output "post_deployment_instructions" {
-  description = "Steps to activate the stack"
+  description = "Steps to activate the staging stack"
   value       = <<-EOT
-    ✅ GCP Stack deployed successfully!
+    Staging Stack deployed successfully!
 
     Stack Details:
     - Name: ${var.stack_name}
-    - Orchestrator: ${var.orchestrator}
-    - Region: ${var.region}
-    - Artifact Store: ${module.zenml_stack.gcs_artifact_store_path}
+    - Orchestrator: Vertex AI (${var.region})
+    - Workspace: enterprise-dev-staging
+
+    Labels applied to all ZenML resources:
+    - environment: staging
+    - team: ${var.team_name}
+    - cost_center: ${var.cost_center}
 
     Next steps:
-    1. Install GCP integration:
-       zenml integration install gcp
-
-    2. Activate the stack:
-       zenml stack set ${var.stack_name}
-
-    3. Verify the stack:
-       zenml stack describe ${var.stack_name}
-
-    4. Run a pipeline:
-       python run.py --pipeline training --environment staging
-
-    For GitHub Actions CI/CD:
-    - Configure secrets: ZENML_STORE_URL, ZENML_STORE_API_KEY
-    - Use Workload Identity for GCP auth (see github_actions_setup output)
+    1. Source workspace: source scripts/use-workspace.sh dev-staging
+    2. Set the project: zenml project set cancer-detection
+    3. Activate the stack: zenml stack set ${var.stack_name}
+    4. Run training: python run.py --pipeline training --environment staging
   EOT
 }

@@ -2,7 +2,23 @@
 # Configure these in terraform.tfvars or via environment variables
 
 # =============================================================================
-# Required Variables
+# ZenML Connection (Required)
+# =============================================================================
+
+variable "zenml_server_url" {
+  description = "ZenML server URL (e.g., https://your-workspace.zenml.io)"
+  type        = string
+  sensitive   = false
+}
+
+variable "zenml_api_key" {
+  description = "ZenML API key for authentication"
+  type        = string
+  sensitive   = true
+}
+
+# =============================================================================
+# GCP Configuration (Required)
 # =============================================================================
 
 variable "project_id" {
@@ -24,12 +40,6 @@ variable "stack_name" {
   description = "Name of the ZenML stack"
   type        = string
   default     = "dev-stack"
-}
-
-variable "deployment_name" {
-  description = "Name for the stack deployment (used in resource naming)"
-  type        = string
-  default     = "zenml-development"
 }
 
 # =============================================================================
