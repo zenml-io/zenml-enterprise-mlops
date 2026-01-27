@@ -33,7 +33,7 @@ zenml init
 python run.py --pipeline training
 
 # View results
-zenml up
+zenml login
 ```
 
 ## Pipelines
