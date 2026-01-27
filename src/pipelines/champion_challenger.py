@@ -229,6 +229,7 @@ cause before considering promotion. Consider:
         name=MODEL_NAME,
         version=ModelStages.LATEST,
     ),
+    enable_cache=False,
 )
 def champion_challenger_pipeline() -> str:
     """Run champion/challenger comparison for safe model rollouts.

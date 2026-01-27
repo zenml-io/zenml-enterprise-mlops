@@ -77,7 +77,6 @@ def check_and_apply_smote(
     Returns:
         Training features and labels (resampled if needed)
     """
-    print("Hey!")
     if not enable_resampling:
         logger.info("SMOTE resampling disabled")
         return X_train, y_train
@@ -209,6 +208,7 @@ def log_environment_metadata(
     ),
     on_success=pipeline_success_hook,
     on_failure=pipeline_failure_hook,
+    enable_cache=False,
 )
 def training_pipeline(
     test_size: float = 0.2,
