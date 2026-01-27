@@ -93,6 +93,7 @@ def scale_and_predict(
     ),
     on_success=pipeline_success_hook,
     on_failure=pipeline_failure_hook,
+    enable_cache=False,
 )
 def batch_inference_pipeline():
     """Run batch inference using the production model.
