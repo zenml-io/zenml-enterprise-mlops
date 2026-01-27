@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
+      - name: Install GCP integration
+        run: zenml integration install gcp -y --uv
+
       # Set project (ZenML auto-connects via env vars)
       - name: Configure ZenML
         run: zenml project set $ZENML_PROJECT
@@ -123,6 +126,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
+      - name: Install GCP integration
+        run: zenml integration install gcp -y --uv
+
       # Set project and stack (ZenML auto-connects via env vars)
       - name: Configure ZenML
         run: |
@@ -184,6 +190,9 @@ jobs:
 
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
+
+      - name: Install GCP integration
+        run: zenml integration install gcp -y --uv
 
       # Set project and stack (ZenML auto-connects via env vars)
       - name: Configure ZenML
