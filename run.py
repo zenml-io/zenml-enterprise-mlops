@@ -40,9 +40,31 @@ For real-time inference (Pipeline Deployments):
 from pathlib import Path
 
 import click
+from zenml.client import Client
 from zenml.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def set_stack_for_environment(environment: str) -> None:
+    """Set the appropriate stack based on environment.
+
+    Args:
+        environment: Environment name (local, staging, production)
+    """
+    client = Client()
+    stack_map = {
+        "local": "dev-stack",
+        "staging": "staging-stack",
+    }
+
+    stack_name = stack_map.get(environment)
+    if stack_name:
+        try:
+            client.activate_stack(stack_name)
+            logger.info(f"Activated stack: {stack_name}")
+        except KeyError:
+            logger.warning(f"Stack '{stack_name}' not found, using current stack")
 
 
 @click.command()
@@ -101,8 +123,11 @@ def main(
     if pipeline == "training":
         from src.pipelines.training import training_pipeline
 
+        # Set stack based on environment
+        set_stack_for_environment(environment)
+
         # Build kwargs from CLI args (only include if explicitly set)
-        kwargs = {}
+        kwargs = {"environment": environment}  # Always pass environment for tracking
         if test_size is not None:
             kwargs["test_size"] = test_size
         if n_estimators is not None:
@@ -112,12 +137,20 @@ def main(
         if min_accuracy is not None:
             kwargs["min_accuracy"] = min_accuracy
 
-        # Run with config file, CLI args override config
-        if config_path.exists():
-            training_pipeline.with_options(config_path=str(config_path))(**kwargs)
-        else:
-            # Fallback to direct call with defaults
+        # Local: fast iteration without governance
+        # Staging: full governance enforcement
+        if environment == "local":
+            logger.info("Using local mode (no governance, simpler DAG)")
+            kwargs["enable_governance"] = False
             training_pipeline(**kwargs)
+        else:
+            logger.info("Using staging mode (full governance)")
+            kwargs["enable_governance"] = True
+            # Run with config file, CLI args override config
+            if config_path.exists():
+                training_pipeline.with_options(config_path=str(config_path))(**kwargs)
+            else:
+                training_pipeline(**kwargs)
 
         logger.info("Training pipeline completed successfully!")
 

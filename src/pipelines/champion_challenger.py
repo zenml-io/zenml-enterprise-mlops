@@ -21,8 +21,10 @@ from typing import Annotated
 import pandas as pd
 from zenml import Model, get_step_context, pipeline, step
 from zenml.enums import ModelStages
+from zenml.logger import get_logger
 
 MODEL_NAME = "breast_cancer_classifier"
+logger = get_logger(__name__)
 
 
 @step
@@ -42,6 +44,27 @@ def load_inference_data() -> Annotated[pd.DataFrame, "inference_data"]:
     return X.sample(n=min(200, len(X)), random_state=42)
 
 
+def find_latest_staging_trained_model(client):
+    """Find the latest model version trained with environment=staging.
+
+    This identifies the challenger model from Chapter 2 (staging training).
+    """
+    versions = client.list_model_versions(model=MODEL_NAME, size=100)
+    sorted_versions = sorted(versions, key=lambda v: v.number, reverse=True)
+
+    for version in sorted_versions:
+        metadata = version.run_metadata or {}
+        env_meta = metadata.get("environment")
+        if env_meta:
+            env_value = env_meta.value if hasattr(env_meta, "value") else env_meta
+            if env_value == "staging":
+                logger.info(f"Found staging-trained model: v{version.number}")
+                return version
+
+    logger.warning("No staging-trained model found, falling back to latest")
+    return None
+
+
 @step
 def predict_with_model(
     data: pd.DataFrame,
@@ -51,7 +74,9 @@ def predict_with_model(
 
     Args:
         data: Input features for prediction
-        model_stage: Which model stage to use ("staging" or "latest")
+        model_stage: Which model to use:
+            - "staging": Champion (current staging stage model)
+            - "challenger": Challenger (latest model trained with environment=staging)
     """
     from zenml.client import Client
 
@@ -60,18 +85,21 @@ def predict_with_model(
 
     # Load model from the specified stage
     if model_stage == "staging":
-        # Champion: current staging model
+        # Champion: current staging model (has been promoted to staging stage)
         try:
             model_version = client.get_model_version(
                 model_name_or_id=MODEL_NAME,
                 model_version_name_or_number_or_id=ModelStages.STAGING,
             )
         except KeyError:
-            context.logger.warning("No staging model found, using latest for both")
+            logger.warning("No staging model found, using latest for both")
             model_version = context.model
     else:
-        # Challenger: latest trained model
-        model_version = context.model
+        # Challenger: latest model trained with environment=staging (from Ch2)
+        model_version = find_latest_staging_trained_model(client)
+        if model_version is None:
+            # Fallback to pipeline's model (LATEST)
+            model_version = context.model
 
     # Load artifacts
     model_artifact = model_version.get_artifact("sklearn_classifier")
@@ -207,9 +235,12 @@ def champion_challenger_pipeline() -> str:
 
     This pipeline:
     1. Loads inference data
-    2. Runs predictions with staging model (champion = current staging)
-    3. Runs predictions with latest model (challenger = newly trained)
+    2. Runs predictions with staging model (champion = current staging stage)
+    3. Runs predictions with staging-trained model (challenger = environment:staging)
     4. Compares predictions and generates report
+
+    The challenger is identified by the `environment: staging` metadata,
+    which distinguishes it from local development runs.
 
     Returns:
         Comparison report with promotion recommendation
@@ -226,7 +257,7 @@ def champion_challenger_pipeline() -> str:
 
     challenger_predictions = predict_with_model(
         data=inference_data,
-        model_stage="latest",
+        model_stage="challenger",
         id="challenger_predict",
     )
 

@@ -30,7 +30,7 @@ from typing import Annotated, Optional
 
 import pandas as pd
 from sklearn.decomposition import PCA
-from zenml import Model, pipeline, step
+from zenml import Model, get_step_context, log_metadata, pipeline, step
 from zenml.logger import get_logger
 
 # Import platform governance
@@ -176,6 +176,30 @@ def check_and_apply_pca(
     )
 
 
+@step
+def log_environment_metadata(
+    environment: str,
+) -> Annotated[str, "environment_logged"]:
+    """Log the environment to the model version for tracking.
+
+    This enables identifying which environment trained each model version:
+    - local: Fast iteration during development
+    - staging: Production-like validation before promotion
+
+    Args:
+        environment: The environment name (local, staging, production)
+
+    Returns:
+        Confirmation message
+    """
+    log_metadata(
+        metadata={"environment": environment},
+        infer_model=True,
+    )
+    logger.info(f"Logged environment '{environment}' to model version")
+    return f"environment: {environment}"
+
+
 @pipeline(
     model=Model(
         name="breast_cancer_classifier",
@@ -195,24 +219,25 @@ def training_pipeline(
     enable_pca: bool = False,
     max_features_for_pca: int = 50,
     pca_components: int = 30,
+    environment: str = "local",
+    enable_governance: bool = True,
 ):
     """Train and validate a binary classification model.
 
     This pipeline demonstrates:
     1. Clean Python code (no framework wrappers)
-    2. Platform governance (automatic via hooks)
+    2. Platform governance (automatic via hooks, optional for local dev)
     3. Dynamic preprocessing (conditional SMOTE, PCA)
     4. Complete lineage and metadata tracking
 
-    Platform governance is automatically enforced:
+    Platform governance (when enabled):
     - Data quality validation (platform step)
     - Model performance validation (platform step)
     - MLflow auto-logging (platform hook)
     - Compliance audit trail (platform hook)
 
-    Dynamic features adapt at runtime:
-    - SMOTE resampling if class imbalance detected
-    - PCA if feature count is high
+    For local development, set enable_governance=False to skip validation
+    steps and run a simpler, faster pipeline.
 
     Args:
         test_size: Fraction of data for testing
@@ -224,12 +249,15 @@ def training_pipeline(
         enable_pca: Enable dynamic PCA for high-dimensional data
         max_features_for_pca: Max features before triggering PCA (default 50)
         pca_components: Number of principal components to keep (default 30)
+        environment: Environment name for tracking (local, staging, production)
+        enable_governance: Enable governance steps (validation, hooks). Set False for fast local dev.
     """
     # Load data
     X_train, X_test, y_train, y_test = load_data(test_size=test_size)
 
-    # Platform governance: Validate data quality
-    X_train = validate_data_quality(X_train, min_rows=100)
+    # Platform governance: Validate data quality (conditional)
+    if enable_governance:
+        X_train = validate_data_quality(X_train, min_rows=100)
 
     # Dynamic: Check for class imbalance and apply SMOTE if needed
     # Logic is handled inside the step to avoid pipeline-level conditional branching
@@ -264,13 +292,17 @@ def training_pipeline(
     # Evaluate model
     metrics = evaluate_model(model, X_test_final, y_test)
 
-    # Platform governance: Validate model performance
-    validate_model_performance(
-        metrics,
-        min_accuracy=min_accuracy,
-        min_precision=0.7,
-        min_recall=0.7,
-    )
+    # Platform governance: Validate model performance (conditional)
+    if enable_governance:
+        validate_model_performance(
+            metrics,
+            min_accuracy=min_accuracy,
+            min_precision=0.7,
+            min_recall=0.7,
+        )
+
+    # Log environment to model version (for tracking local vs staging runs)
+    log_environment_metadata(environment=environment)
 
     return model, metrics
 

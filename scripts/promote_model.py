@@ -55,7 +55,9 @@ from zenml.models import ModelVersionResponse
 logger = get_logger(__name__)
 
 
-def find_latest_with_metrics(client: Client, model_name: str) -> "ModelVersionResponse":
+def find_latest_with_metrics(
+    client: Client, model_name: str, prefer_environment: str | None = "staging"
+) -> "ModelVersionResponse":
     """Find the latest model version that has metrics logged.
 
     When pipeline runs are fully cached, ZenML still creates a new model version
@@ -65,6 +67,8 @@ def find_latest_with_metrics(client: Client, model_name: str) -> "ModelVersionRe
     Args:
         client: ZenML client
         model_name: Name of the model
+        prefer_environment: If set, prefer models with this environment metadata.
+            Use "staging" to prefer staging-trained models over local runs.
 
     Returns:
         The latest model version with metrics
@@ -78,10 +82,27 @@ def find_latest_with_metrics(client: Client, model_name: str) -> "ModelVersionRe
     # Sort by version number descending to get latest first
     sorted_versions = sorted(versions, key=lambda v: v.number, reverse=True)
 
+    # First pass: find staging-trained models (if prefer_environment is set)
+    if prefer_environment:
+        for version in sorted_versions:
+            metrics = version.run_metadata
+            if not metrics or not all(m in metrics for m in required_metrics):
+                continue
+            env_meta = metrics.get("environment")
+            if env_meta:
+                env_value = env_meta.value if hasattr(env_meta, "value") else env_meta
+                if env_value == prefer_environment:
+                    logger.info(
+                        f"Found version {version.number} with metrics "
+                        f"and environment={prefer_environment}"
+                    )
+                    return version
+
+    # Second pass: fall back to any model with metrics
     for version in sorted_versions:
         metrics = version.run_metadata
         if metrics and all(m in metrics for m in required_metrics):
-            logger.info(f"Found version {version.number} with metrics")
+            logger.info(f"Found version {version.number} with metrics (fallback)")
             return version
 
     raise ValueError(
