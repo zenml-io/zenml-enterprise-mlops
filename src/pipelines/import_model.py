@@ -94,7 +94,7 @@ def log_cross_workspace_metadata(
     This step preserves all lineage information from the source workspace
     as metadata on the model version in the destination workspace.
 
-    This addresses HCA's requirement:
+    This addresses the enterprise requirement:
     "Can we trace a production prediction back to training data, code commit, and pipeline run?"
 
     Args:
@@ -190,7 +190,7 @@ def import_model_pipeline(
     - Source lineage links (workspace, version, pipeline run URL)
     - Complete promotion chain history
 
-    This addresses HCA's requirements:
+    This addresses enterprise requirements:
     - "How does ZenML maintain audit trails for model training, promotion, and deployment?"
     - "Can we trace a production prediction back to training data, code commit, and pipeline run?"
 

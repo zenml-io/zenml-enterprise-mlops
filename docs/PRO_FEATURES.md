@@ -198,9 +198,9 @@ for log in audit_logs:
 | **SSO/SAML** | ❌ | ✅ |
 | **Support SLA** | Community | Enterprise |
 
-## Architecture for HCA's Requirements
+## Enterprise Architecture
 
-Based on HCA's hub-and-spoke architecture needs, we recommend a **2-Workspace Architecture** that provides ZenML version upgrade isolation while maintaining promotion workflows.
+For enterprises with hub-and-spoke architecture needs, we recommend a **2-Workspace Architecture** that provides ZenML version upgrade isolation while maintaining promotion workflows.
 
 ### 2-Workspace Architecture (Recommended)
 

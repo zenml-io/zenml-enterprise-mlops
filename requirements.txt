@@ -25,3 +25,4 @@ notebook>=7.0.0
 # zenml[aws]
 # zenml[gcp]
 # zenml[azure]
+python-dotenv>=1.0.0

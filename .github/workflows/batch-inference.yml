@@ -18,8 +18,9 @@ jobs:
   batch-inference:
     runs-on: ubuntu-latest
     env:
-      # 2-Workspace Architecture: Connect to production workspace
-      ZENML_PRODUCTION_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+      # 2-Workspace Architecture: ZenML auto-connects using these env vars
+      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: gcp-stack
 
@@ -38,10 +39,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      # Connect to production workspace (where production models live)
-      - name: Connect to production workspace
+      # Set project and stack (ZenML auto-connects via env vars)
+      - name: Configure ZenML
         run: |
-          zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
           zenml project set $ZENML_PROJECT
           zenml stack set $ZENML_STACK
 

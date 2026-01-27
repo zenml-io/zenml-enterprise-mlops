@@ -22,7 +22,7 @@ enterprise-production workspaces. It exports model artifacts and metadata
 from the source workspace, stores them in a shared GCS bucket, and imports
 them into the destination workspace with full audit trail preservation.
 
-This addresses HCA's #1 pain point: "Promotion is manual and error-prone"
+This addresses the enterprise pain point: "Promotion is manual and error-prone"
 
 Usage:
     # Full promotion (export + import)
@@ -47,10 +47,13 @@ Usage:
         --dest-stage production \
         --import-from gs://zenml-core-model-exchange/exports/...
 
-Environment Variables:
+Environment Variables (can also be set in .env file):
+    ZENML_DEV_STAGING_STORE_URL: URL for dev-staging workspace
     ZENML_DEV_STAGING_API_KEY: API key for dev-staging workspace
+    ZENML_PRODUCTION_STORE_URL: URL for production workspace
     ZENML_PRODUCTION_API_KEY: API key for production workspace
     MODEL_EXCHANGE_BUCKET: GCS bucket for model exchange (default: zenml-core-model-exchange)
+    GCP_PROJECT_ID: GCP project ID (default: zenml-core)
 """
 
 import json
@@ -63,31 +66,40 @@ from typing import Optional
 
 import click
 import joblib
+from dotenv import load_dotenv
 from google.cloud import storage
 from zenml.client import Client
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
 
+# Load environment variables from .env file
+load_dotenv()
+
 logger = get_logger(__name__)
 
-# Configuration
-DEFAULT_EXCHANGE_BUCKET = "zenml-core-model-exchange"
-DEFAULT_GCP_PROJECT = "zenml-core"
+# Configuration (with env var overrides)
+DEFAULT_EXCHANGE_BUCKET = os.getenv("MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange")
+DEFAULT_GCP_PROJECT = os.getenv("GCP_PROJECT_ID", "zenml-core")
 
 WORKSPACE_CONFIG = {
     "enterprise-dev-staging": {
+        "url_env": "ZENML_DEV_STAGING_STORE_URL",
         "api_key_env": "ZENML_DEV_STAGING_API_KEY",
-        "project": "cancer-detection",
+        "project": os.getenv("ZENML_PROJECT", "cancer-detection"),
     },
     "enterprise-production": {
+        "url_env": "ZENML_PRODUCTION_STORE_URL",
         "api_key_env": "ZENML_PRODUCTION_API_KEY",
-        "project": "cancer-detection",
+        "project": os.getenv("ZENML_PROJECT", "cancer-detection"),
     },
 }
 
 
 def connect_to_workspace(workspace_name: str) -> Client:
-    """Connect to a ZenML workspace.
+    """Connect to a ZenML workspace by setting environment variables.
+
+    ZenML automatically uses ZENML_STORE_URL and ZENML_STORE_API_KEY
+    when creating a Client.
 
     Args:
         workspace_name: Name of the workspace to connect to
@@ -99,7 +111,13 @@ def connect_to_workspace(workspace_name: str) -> Client:
     if not config:
         raise ValueError(f"Unknown workspace: {workspace_name}")
 
+    url = os.environ.get(config["url_env"])
     api_key = os.environ.get(config["api_key_env"])
+
+    if not url:
+        raise ValueError(
+            f"Store URL not found. Set {config['url_env']} environment variable."
+        )
     if not api_key:
         raise ValueError(
             f"API key not found. Set {config['api_key_env']} environment variable."
@@ -107,14 +125,9 @@ def connect_to_workspace(workspace_name: str) -> Client:
 
     logger.info(f"Connecting to workspace: {workspace_name}")
 
-    # Use zenml login command
-    result = subprocess.run(
-        ["zenml", "login", workspace_name, "--api-key", api_key],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to connect to {workspace_name}: {result.stderr}")
+    # Set ZenML environment variables for auto-connection
+    os.environ["ZENML_STORE_URL"] = url
+    os.environ["ZENML_STORE_API_KEY"] = api_key
 
     # Set project
     result = subprocess.run(

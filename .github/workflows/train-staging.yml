@@ -21,8 +21,9 @@ jobs:
   train:
     runs-on: ubuntu-latest
     env:
-      # 2-Workspace Architecture: Connect to dev-staging workspace
-      ZENML_DEV_STAGING_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
+      # 2-Workspace Architecture: ZenML auto-connects using these env vars
+      ZENML_STORE_URL: ${{ secrets.ZENML_DEV_STAGING_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: staging-stack
       # Auto-populated from GitHub
@@ -47,10 +48,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      # Connect to dev-staging workspace (2-workspace architecture)
-      - name: Connect to dev-staging workspace
+      # Set project and stack (ZenML auto-connects via env vars)
+      - name: Configure ZenML
         run: |
-          zenml login enterprise-dev-staging --api-key $ZENML_DEV_STAGING_API_KEY
           zenml project set $ZENML_PROJECT
           zenml stack set $ZENML_STACK
 

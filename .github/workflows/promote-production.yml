@@ -34,7 +34,8 @@ jobs:
       model_version: ${{ steps.version.outputs.version }}
     env:
       # 2-Workspace Architecture: Connect to dev-staging for export
-      ZENML_DEV_STAGING_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_DEV_STAGING_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_DEV_STAGING_API_KEY }}
       ZENML_PROJECT: cancer-detection
 
     steps:
@@ -52,11 +53,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      # Connect to dev-staging workspace (source of models)
-      - name: Connect to dev-staging workspace
-        run: |
-          zenml login enterprise-dev-staging --api-key $ZENML_DEV_STAGING_API_KEY
-          zenml project set $ZENML_PROJECT
+      # Set project (ZenML auto-connects via env vars)
+      - name: Configure ZenML
+        run: zenml project set $ZENML_PROJECT
 
       - name: Determine version
         id: version
@@ -104,7 +103,8 @@ jobs:
       name: production  # GitHub environment with approval gate
     env:
       # 2-Workspace Architecture: Connect to production for import
-      ZENML_PRODUCTION_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: gcp-stack
 
@@ -123,10 +123,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      # Connect to production workspace (destination for models)
-      - name: Connect to production workspace
+      # Set project and stack (ZenML auto-connects via env vars)
+      - name: Configure ZenML
         run: |
-          zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
           zenml project set $ZENML_PROJECT
           zenml stack set $ZENML_STACK
 
@@ -165,7 +164,8 @@ jobs:
     needs: import-model
     runs-on: ubuntu-latest
     env:
-      ZENML_PRODUCTION_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
+      ZENML_STORE_URL: ${{ secrets.ZENML_PRODUCTION_STORE_URL }}
+      ZENML_STORE_API_KEY: ${{ secrets.ZENML_PRODUCTION_API_KEY }}
       ZENML_PROJECT: cancer-detection
       ZENML_STACK: gcp-stack
       ZENML_GITHUB_SHA: ${{ github.sha }}
@@ -185,9 +185,9 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      - name: Connect to production workspace
+      # Set project and stack (ZenML auto-connects via env vars)
+      - name: Configure ZenML
         run: |
-          zenml login enterprise-production --api-key $ZENML_PRODUCTION_API_KEY
           zenml project set $ZENML_PROJECT
           zenml stack set $ZENML_STACK
 

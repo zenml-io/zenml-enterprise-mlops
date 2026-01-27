@@ -719,9 +719,11 @@ python run.py --pipeline batch_inference --environment production
 
 | Secret | Workspace | Description |
 |--------|-----------|-------------|
+| `ZENML_DEV_STAGING_STORE_URL` | enterprise-dev-staging | ZenML server URL for dev-staging workspace |
 | `ZENML_DEV_STAGING_API_KEY` | enterprise-dev-staging | API key for dev-staging workspace |
+| `ZENML_PRODUCTION_STORE_URL` | enterprise-production | ZenML server URL for production workspace |
 | `ZENML_PRODUCTION_API_KEY` | enterprise-production | API key for production workspace |
-| `GCP_SA_KEY` | N/A | GCP service account for artifact access |
+| `GCP_SA_KEY` | N/A | GCP service account for artifact access (optional) |
 
 ---
 
