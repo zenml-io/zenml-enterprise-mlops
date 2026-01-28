@@ -83,13 +83,21 @@ deploy_stack() {
     local stack="$1"
     local dir=$(get_stack_dir "$stack")
     local workspace=$(get_workspace_for_stack "$stack")
-    
+
     log_info "Deploying $stack stack..."
-    
+
+    # Save shared bucket if it was captured from shared terraform
+    local saved_shared_bucket="$TF_VAR_shared_artifact_bucket"
+
     # Switch workspace if needed
     if [ "$workspace" != "none" ] && [ "$workspace" != "$CURRENT_WORKSPACE" ]; then
         log_info "Switching to $workspace workspace..."
         source "$REPO_ROOT/scripts/use-workspace.sh" "$workspace"
+    fi
+
+    # Restore shared bucket from shared terraform output (takes precedence over .env)
+    if [ -n "$saved_shared_bucket" ]; then
+        export TF_VAR_shared_artifact_bucket="$saved_shared_bucket"
     fi
     
     cd "$dir"
@@ -199,7 +207,13 @@ deploy_all() {
 
     check_gcp
 
-    # 1. Shared (no ZenML needed)
+    # Source dev-staging workspace first to get TF_VAR_bucket_name from .env
+    # This ensures shared terraform uses the correct bucket name
+    log_info "Loading environment variables from .env..."
+    source "$REPO_ROOT/scripts/use-workspace.sh" dev-staging
+    echo ""
+
+    # 1. Shared (no ZenML needed, but uses TF_VAR_bucket_name from .env)
     log_info "Step 1/5: Deploying shared artifact store..."
     deploy_stack shared
     echo ""

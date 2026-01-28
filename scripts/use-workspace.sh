@@ -101,15 +101,13 @@ export ZENML_DEV_STACK="${ZENML_DEV_STACK:-dev-stack}"
 export ZENML_STAGING_STACK="${ZENML_STAGING_STACK:-staging-stack}"
 export ZENML_PRODUCTION_STACK="${ZENML_PRODUCTION_STACK:-gcp-stack}"
 
-# Export shared bucket if set
-if [ -n "$SHARED_ARTIFACT_BUCKET" ]; then
-    export TF_VAR_shared_artifact_bucket="$SHARED_ARTIFACT_BUCKET"
-    echo "  Shared bucket: $SHARED_ARTIFACT_BUCKET"
-fi
-
-# Export model exchange bucket for shared terraform
+# Export model exchange bucket for all terraform configs
+# - TF_VAR_bucket_name: used by shared/gcp terraform
+# - TF_VAR_shared_artifact_bucket: used by staging/production terraform
 if [ -n "$MODEL_EXCHANGE_BUCKET" ]; then
     export TF_VAR_bucket_name="$MODEL_EXCHANGE_BUCKET"
+    export TF_VAR_shared_artifact_bucket="$MODEL_EXCHANGE_BUCKET"
+    echo "  Shared bucket: $MODEL_EXCHANGE_BUCKET"
 fi
 
 echo ""
