@@ -107,7 +107,8 @@ def rollback_model(
     3. Promotes the previous (or specified) version back to production
     4. Logs the rollback event for compliance audit trail
 
-    The rollback is atomic - if any step fails, no changes are made.
+    Note: If step 2 fails after step 1 succeeds, the current model will already
+    be demoted. In case of partial failure, manual intervention may be required.
     """
     client = Client()
 
@@ -153,8 +154,8 @@ def rollback_model(
         # Show rollback plan
         logger.info("")
         logger.info("📋 Rollback Plan:")
-        logger.info(f"  1. Demote v{current_prod.number} from production → archived")
-        logger.info(f"  2. Promote v{rollback_target.number} to production")
+        logger.info(f"  1. Promote v{rollback_target.number} to production")
+        logger.info(f"  2. Demote v{current_prod.number} from production → archived")
         if reason:
             logger.info(f"  Reason: {reason}")
         logger.info("")
@@ -164,15 +165,17 @@ def rollback_model(
             return
 
         # Execute rollback
+        # Order is important: promote first, then demote to avoid having no production model
         logger.info("Executing rollback...")
 
-        # Step 1: Demote current production
-        logger.info(f"Demoting v{current_prod.number} to archived...")
-        current_prod.set_stage(stage=ModelStages.ARCHIVED, force=True)
-
-        # Step 2: Promote rollback target
+        # Step 1: Promote rollback target to production first
+        # This ensures we always have a production model even if step 2 fails
         logger.info(f"Promoting v{rollback_target.number} to production...")
         rollback_target.set_stage(stage=ModelStages.PRODUCTION, force=True)
+
+        # Step 2: Demote previous production to archived
+        logger.info(f"Demoting v{current_prod.number} to archived...")
+        current_prod.set_stage(stage=ModelStages.ARCHIVED, force=True)
 
         # Step 3: Log rollback metadata for audit trail
         rollback_metadata = {

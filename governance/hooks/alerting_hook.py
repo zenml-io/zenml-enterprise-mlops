@@ -40,7 +40,6 @@ Usage:
     from zenml.hooks import alerter_success_hook, alerter_failure_hook
 """
 
-from ast import Pass
 from zenml import get_step_context
 from zenml.client import Client
 from zenml.logger import get_logger
@@ -155,8 +154,7 @@ def pipeline_success_hook() -> None:
             alerter.post(message=message)
             logger.info(f"Pipeline success notification sent for '{pipeline_name}'")
         else:
-            pass # TODO: Remove this once we have a real alerter
-            # logger.info(f"Pipeline '{pipeline_name}' completed successfully")
+            logger.info(f"No alerter configured. Pipeline '{pipeline_name}' completed successfully")
 
     except Exception as e:
         logger.warning(f"Could not send pipeline success alert: {e}")

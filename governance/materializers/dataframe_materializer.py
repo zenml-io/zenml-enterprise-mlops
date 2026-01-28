@@ -79,8 +79,10 @@ class EnhancedDataFrameMaterializer(BaseMaterializer):
             "dtypes": df.dtypes.astype(str).to_dict(),
             "memory_bytes": df.memory_usage(deep=True).sum(),
             "missing_values": df.isnull().sum().to_dict(),
-            "missing_percentage": (df.isnull().sum() / len(df) * 100).to_dict(),
+            "missing_percentage": (df.isnull().sum() / len(df) * 100).to_dict() if len(df) > 0 else {},
         }
 
-        # Platform governance: log metadata
-        self.save_visualizations(metadata)
+        # Platform governance: extract metadata for ZenML to log
+        # Note: Metadata is automatically extracted by ZenML's artifact system
+        # The metadata dict above will be available via artifact.metadata
+        self.extract_metadata(df)

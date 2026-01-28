@@ -73,10 +73,10 @@ from typing import Optional
 import click
 import joblib
 from dotenv import load_dotenv
-from google.cloud import storage
 from zenml import log_metadata
 from zenml.client import Client
 from zenml.enums import ModelStages
+from zenml.io import fileio
 from zenml.logger import get_logger
 
 # Load environment variables from .env file
@@ -100,6 +100,30 @@ WORKSPACE_CONFIG = {
         "project": os.getenv("ZENML_PROJECT", "cancer-detection"),
     },
 }
+
+
+def _validate_manifest(manifest: dict) -> None:
+    """Validate manifest has required fields.
+
+    Args:
+        manifest: The loaded manifest dictionary
+
+    Raises:
+        ValueError: If required fields are missing
+    """
+    required_fields = ["model_name", "export_path", "source", "artifacts", "promotion_chain"]
+    missing = [f for f in required_fields if f not in manifest]
+    if missing:
+        raise ValueError(f"Invalid manifest: missing required fields: {missing}")
+
+    required_source_fields = ["workspace", "model_version"]
+    source = manifest.get("source", {})
+    missing_source = [f for f in required_source_fields if f not in source]
+    if missing_source:
+        raise ValueError(f"Invalid manifest: missing source fields: {missing_source}")
+
+    if "model" not in manifest.get("artifacts", {}):
+        raise ValueError("Invalid manifest: missing artifacts.model field")
 
 
 def connect_to_workspace(workspace_name: str) -> Client:
@@ -137,6 +161,9 @@ def connect_to_workspace(workspace_name: str) -> Client:
     os.environ["ZENML_STORE_API_KEY"] = api_key
 
     # Reset the Client singleton so it picks up the new env vars
+    # WARNING: This uses private ZenML APIs (_reset_instance, _zen_store) that may
+    # change between ZenML versions. If this breaks after a ZenML upgrade, check
+    # the ZenML changelog for Client initialization changes.
     Client._reset_instance()
     from zenml.config.global_config import GlobalConfiguration
     gc = GlobalConfiguration()
@@ -278,34 +305,49 @@ def export_model(
         ],
     }
 
-    # Upload to GCS
-    gcs_client = storage.Client(project=DEFAULT_GCP_PROJECT)
-    bucket = gcs_client.bucket(exchange_bucket)
+    # Upload to GCS using ZenML fileio (uses artifact store credentials)
+    export_uri = f"gs://{exchange_bucket}/{export_path}"
+
+    # Ensure export directory exists
+    fileio.makedirs(export_uri)
 
     # Upload model artifact
+    model_uri = f"{export_uri}/model.joblib"
     with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as f:
-        joblib.dump(model, f.name)
-        blob = bucket.blob(f"{export_path}/model.joblib")
-        blob.upload_from_filename(f.name)
-        os.unlink(f.name)
-        logger.info(f"Uploaded model to gs://{exchange_bucket}/{export_path}/model.joblib")
+        tmp_model_path = f.name
+    try:
+        joblib.dump(model, tmp_model_path)
+        fileio.copy(tmp_model_path, model_uri, overwrite=True)
+        logger.info(f"Uploaded model to {model_uri}")
+    finally:
+        if os.path.exists(tmp_model_path):
+            os.unlink(tmp_model_path)
 
     # Upload scaler if exists
     if scaler is not None:
+        scaler_uri = f"{export_uri}/scaler.joblib"
         with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as f:
-            joblib.dump(scaler, f.name)
-            blob = bucket.blob(f"{export_path}/scaler.joblib")
-            blob.upload_from_filename(f.name)
-            os.unlink(f.name)
-            logger.info(f"Uploaded scaler to gs://{exchange_bucket}/{export_path}/scaler.joblib")
+            tmp_scaler_path = f.name
+        try:
+            joblib.dump(scaler, tmp_scaler_path)
+            fileio.copy(tmp_scaler_path, scaler_uri, overwrite=True)
+            logger.info(f"Uploaded scaler to {scaler_uri}")
+        finally:
+            if os.path.exists(tmp_scaler_path):
+                os.unlink(tmp_scaler_path)
 
     # Upload manifest
-    manifest_blob = bucket.blob(f"{export_path}/manifest.json")
-    manifest_blob.upload_from_string(
-        json.dumps(manifest, indent=2, default=str),
-        content_type="application/json",
-    )
-    logger.info(f"Uploaded manifest to gs://{exchange_bucket}/{export_path}/manifest.json")
+    manifest_uri = f"{export_uri}/manifest.json"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        tmp_manifest_path = f.name
+        json.dump(manifest, f, indent=2, default=str)
+        f.flush()
+    try:
+        fileio.copy(tmp_manifest_path, manifest_uri, overwrite=True)
+        logger.info(f"Uploaded manifest to {manifest_uri}")
+    finally:
+        if os.path.exists(tmp_manifest_path):
+            os.unlink(tmp_manifest_path)
 
     # Write export path to file for GitHub Actions (only in CI environment)
     if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
@@ -384,18 +426,26 @@ def import_model(
     """
     logger.info(f"Importing model into {dest_workspace}")
 
-    # Load manifest from GCS
-    gcs_client = storage.Client(project=DEFAULT_GCP_PROJECT)
-    bucket = gcs_client.bucket(exchange_bucket)
-
-    # Parse manifest path
-    if manifest_path.startswith("gs://"):
-        manifest_path = manifest_path.replace(f"gs://{exchange_bucket}/", "")
+    # Load manifest using ZenML fileio (uses artifact store credentials)
+    # Normalize manifest path
+    if not manifest_path.startswith("gs://"):
+        manifest_path = f"gs://{exchange_bucket}/{manifest_path}"
     if not manifest_path.endswith("/manifest.json"):
         manifest_path = f"{manifest_path}/manifest.json"
 
-    manifest_blob = bucket.blob(manifest_path)
-    manifest = json.loads(manifest_blob.download_as_string())
+    # Download manifest to temp file and read
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        fileio.copy(manifest_path, tmp_path, overwrite=True)
+        with open(tmp_path, "r") as f:
+            manifest = json.load(f)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+    # Validate manifest schema
+    _validate_manifest(manifest)
 
     logger.info(f"Loaded manifest for {manifest['model_name']}")
     logger.info(f"Source: {manifest['source']['workspace']} v{manifest['source']['model_version']}")
@@ -569,17 +619,29 @@ def promote_cross_workspace(
             logger.info(f"    --import-from {manifest['export_path']}")
             return
     else:
-        # Load manifest for import-only workflow
+        # Load manifest for import-only workflow using ZenML fileio
         logger.info(f"Import from: {import_from}")
-        gcs_client = storage.Client(project=DEFAULT_GCP_PROJECT)
-        gcs_bucket = gcs_client.bucket(bucket)
 
-        manifest_path = import_from.replace(f"gs://{bucket}/", "")
+        # Normalize manifest path
+        manifest_path = import_from
+        if not manifest_path.startswith("gs://"):
+            manifest_path = f"gs://{bucket}/{manifest_path}"
         if not manifest_path.endswith("/manifest.json"):
             manifest_path = f"{manifest_path}/manifest.json"
 
-        manifest_blob = gcs_bucket.blob(manifest_path)
-        manifest = json.loads(manifest_blob.download_as_string())
+        # Download manifest to temp file and read
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            fileio.copy(manifest_path, tmp_path, overwrite=True)
+            with open(tmp_path, "r") as f:
+                manifest = json.load(f)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+        # Validate manifest schema
+        _validate_manifest(manifest)
 
     # Validation phase
     if dest_workspace and not skip_validation:

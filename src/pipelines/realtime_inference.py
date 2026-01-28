@@ -1,3 +1,19 @@
+# Apache Software License 2.0
+#
+# Copyright (c) ZenML GmbH 2026. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Real-Time Inference Pipeline Deployment.
 
 This pipeline demonstrates ZenML's Pipeline Deployments feature for real-time
@@ -90,40 +106,6 @@ class PredictionResult(BaseModel):
     risk_level: str
     model_version: str
     explanation: dict
-
-
-def load_model_artifacts():
-    """Initialize model artifacts when deployment starts.
-
-    This runs once at deployment startup, not per request.
-    Returns artifacts to be shared across all requests.
-    """
-    from zenml.client import Client
-
-    client = Client()
-
-    # Load production model
-    model_version = client.get_model_version(
-        model_name_or_id="breast_cancer_classifier",
-        model_version_name_or_number_or_id=ModelStages.PRODUCTION,
-    )
-
-    model_artifact = model_version.get_artifact("sklearn_classifier")
-    scaler_artifact = model_version.get_artifact("scaler")
-
-    if model_artifact is None:
-        raise RuntimeError("No production model found")
-
-    return {
-        "model": model_artifact.load(),
-        "scaler": scaler_artifact.load() if scaler_artifact else None,
-        "version": str(model_version.number),
-    }
-
-
-def cleanup_model_artifacts(artifacts: dict | None = None):
-    """Cleanup when deployment stops."""
-    del artifacts  # No cleanup needed for sklearn models
 
 
 @step

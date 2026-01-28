@@ -51,10 +51,11 @@ class TestStandardDockerSettings:
     """Test standard docker settings configuration."""
 
     def test_parent_image(self):
-        """Standard settings should use Python 3.11 slim image."""
+        """Standard settings should use default ZenML image (no custom parent)."""
         from governance.docker import STANDARD_DOCKER_SETTINGS
 
-        assert STANDARD_DOCKER_SETTINGS.parent_image == "python:3.11-slim"
+        # No parent_image = use default ZenML image (has ZenML pre-installed)
+        assert STANDARD_DOCKER_SETTINGS.parent_image is None
 
     def test_package_installer(self):
         """Standard settings should use uv installer."""
@@ -117,10 +118,11 @@ class TestLightweightDockerSettings:
     """Test lightweight docker settings configuration."""
 
     def test_parent_image(self):
-        """Lightweight settings should use Python slim image."""
+        """Lightweight settings should use default ZenML image (no custom parent)."""
         from governance.docker import LIGHTWEIGHT_DOCKER_SETTINGS
 
-        assert LIGHTWEIGHT_DOCKER_SETTINGS.parent_image == "python:3.11-slim"
+        # No parent_image = use default ZenML image (has ZenML pre-installed)
+        assert LIGHTWEIGHT_DOCKER_SETTINGS.parent_image is None
 
     def test_no_heavy_integrations(self):
         """Lightweight settings should not include heavy integrations."""
@@ -138,7 +140,8 @@ class TestGetDockerSettings:
         from governance.docker import get_docker_settings
 
         settings = get_docker_settings(base="standard")
-        assert settings.parent_image == "python:3.11-slim"
+        # No parent_image = use default ZenML image
+        assert settings.parent_image is None
         assert "sklearn" in settings.required_integrations
 
     def test_gpu_base(self):

@@ -25,12 +25,15 @@ The pipeline creates proper lineage in the destination workspace while
 maintaining audit trail links back to the source workspace.
 """
 
+import os
+import tempfile
 from typing import Annotated, Optional
 
 import joblib
 from sklearn.base import ClassifierMixin, TransformerMixin
 from zenml import ArtifactConfig, Model, get_step_context, log_metadata, pipeline, step
 from zenml.enums import ArtifactType, ModelStages
+from zenml.io import fileio
 from zenml.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,6 +49,9 @@ def download_and_register_model(
 ]:
     """Download and register imported model artifact from GCS.
 
+    Uses ZenML fileio for cloud-agnostic file operations that leverage
+    the artifact store's credentials via service connectors.
+
     Args:
         export_path: GCS path to the export directory
         import_metadata: Metadata from the export manifest
@@ -53,28 +59,23 @@ def download_and_register_model(
     Returns:
         The registered model artifact
     """
-    import tempfile
-    from pathlib import Path
-
-    from google.cloud import storage
-
     source = import_metadata.get("source", {})
     logger.info(
         f"Registering model from {source.get('workspace')} v{source.get('model_version')}"
     )
 
-    # Download model from GCS
-    bucket_name = export_path.replace("gs://", "").split("/")[0]
-    blob_path = "/".join(export_path.replace("gs://", "").split("/")[1:]) + "/model.joblib"
+    # Download model using ZenML fileio (uses artifact store credentials)
+    model_uri = f"{export_path}/model.joblib"
 
-    gcs_client = storage.Client()
-    bucket = gcs_client.bucket(bucket_name)
-    blob = bucket.blob(blob_path)
+    with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as tmp:
+        tmp_path = tmp.name
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        local_path = Path(tmpdir) / "model.joblib"
-        blob.download_to_filename(str(local_path))
-        model = joblib.load(local_path)
+    try:
+        fileio.copy(model_uri, tmp_path, overwrite=True)
+        model = joblib.load(tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
     logger.info("Downloaded and registered model artifact")
     return model
@@ -90,6 +91,9 @@ def download_and_register_scaler(
 ]:
     """Download and register imported scaler artifact if present.
 
+    Uses ZenML fileio for cloud-agnostic file operations that leverage
+    the artifact store's credentials via service connectors.
+
     Args:
         export_path: GCS path to the export directory
         has_scaler: Whether a scaler artifact exists
@@ -101,22 +105,18 @@ def download_and_register_scaler(
         logger.info("No scaler to import")
         return None
 
-    import tempfile
-    from pathlib import Path
+    # Download scaler using ZenML fileio (uses artifact store credentials)
+    scaler_uri = f"{export_path}/scaler.joblib"
 
-    from google.cloud import storage
+    with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as tmp:
+        tmp_path = tmp.name
 
-    bucket_name = export_path.replace("gs://", "").split("/")[0]
-    blob_path = "/".join(export_path.replace("gs://", "").split("/")[1:]) + "/scaler.joblib"
-
-    gcs_client = storage.Client()
-    bucket = gcs_client.bucket(bucket_name)
-    blob = bucket.blob(blob_path)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        local_path = Path(tmpdir) / "scaler.joblib"
-        blob.download_to_filename(str(local_path))
-        scaler = joblib.load(local_path)
+    try:
+        fileio.copy(scaler_uri, tmp_path, overwrite=True)
+        scaler = joblib.load(tmp_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
     logger.info("Downloaded and registered scaler artifact")
     return scaler
