@@ -92,7 +92,7 @@ Platform team enforces standards automatically:
 
 ```python
 @pipeline(
-    on_success=mlflow_success_hook,    # Auto-log to MLflow
+    # Hooks applied dynamically in staging/production
     on_failure=compliance_failure_hook  # Alert on failures
 )
 def training_pipeline():

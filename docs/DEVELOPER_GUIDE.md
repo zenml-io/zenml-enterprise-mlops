@@ -189,7 +189,7 @@ def training_pipeline():
 3. **Compose the pipeline**:
    ```python
    from zenml import pipeline, Model
-   from governance.hooks.mlflow_hook import mlflow_success_hook
+   # Hooks are applied automatically in staging/production via run.py
    from governance.steps.data_validation import validate_data_quality
 
    @pipeline(
@@ -198,7 +198,7 @@ def training_pipeline():
            description="Custom model for specific use case",
            tags=["custom", "experiment"]
        ),
-       on_success=mlflow_success_hook,  # Platform governance
+       # Hooks applied dynamically by run.py based on environment
    )
    def my_custom_pipeline():
        """My custom ML pipeline"""

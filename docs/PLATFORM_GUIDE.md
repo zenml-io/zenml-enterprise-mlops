@@ -109,34 +109,39 @@ docker push gcr.io/your-project/zenml-base:v1.0.0
 
 ### Platform Hooks
 
-Hooks enforce governance without developer code changes.
+Hooks are applied **dynamically based on environment** (not hardcoded in pipelines).
 
-**MLflow Hook** (`governance/hooks/mlflow_hook.py`):
+**Available Hooks** (`governance/hooks/`):
+
+1. **Alerting** - `pipeline_success_hook`, `pipeline_failure_hook`
+   - Send Slack/PagerDuty notifications
+
+2. **Governance** - `model_governance_hook`
+   - Enforce required tags and naming conventions
+
+3. **Combined** - `pipeline_governance_success_hook`
+   - Runs both alerting + governance validation
+
+**Usage** - applied in `run.py` based on environment:
 ```python
-def mlflow_success_hook() -> None:
-    """Auto-log to MLflow after each step"""
-    context = get_step_context()
-    mlflow.log_param("step", context.step_run.name)
-    mlflow.log_param("pipeline", context.pipeline_run.name)
+# Local dev: no hooks (fast iteration)
+if environment == "local":
+    training_pipeline(**kwargs)
+
+# Staging/production: full governance
+else:
+    from governance.hooks import (
+        pipeline_governance_success_hook,
+        pipeline_failure_hook,
+    )
+
+    training_pipeline.with_options(
+        on_success=pipeline_governance_success_hook,
+        on_failure=pipeline_failure_hook,
+    )(**kwargs)
 ```
 
-**Compliance Hook** (`governance/hooks/compliance_hook.py`):
-```python
-def compliance_failure_hook() -> None:
-    """Alert on failures for audit trail"""
-    context = get_step_context()
-    send_alert(f"Pipeline failed: {context.pipeline_run.name}")
-```
-
-**Usage** - applied via pipeline decorator:
-```python
-@pipeline(
-    on_success=mlflow_success_hook,
-    on_failure=compliance_failure_hook
-)
-def training_pipeline():
-    ...
-```
+**Note**: MLflow tracking is handled by ZenML's experiment tracker component, not hooks.
 
 ### Shared Validation Steps
 

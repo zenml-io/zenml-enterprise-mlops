@@ -248,7 +248,7 @@ python scripts/promote_cross_workspace.py \
 zenml-enterprise-mlops/
 ├── governance/               # Platform team owns this
 │   ├── hooks/               # Governance enforcement
-│   │   ├── mlflow_hook.py           # MLflow auto-logging
+│   │   ├── alerting_hook.py         # Slack/PagerDuty notifications
 │   │   └── compliance_hook.py       # Audit trail
 │   ├── steps/               # Shared validation steps
 │   │   ├── validate_data_quality.py
@@ -443,7 +443,7 @@ Platform team enforces governance through hooks:
 
 ```python
 @pipeline(
-    on_success=mlflow_success_hook,      # Log to MLflow
+    on_success=pipeline_governance_success_hook,  # Alerting + governance
     on_failure=compliance_failure_hook,  # Alert on failure
 )
 def training_pipeline():
