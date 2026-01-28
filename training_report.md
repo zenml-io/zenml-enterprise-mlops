@@ -1,9 +1,9 @@
 # Training Report
 
-**Model**: `breast_cancer_classifier` (v4)
-**Pipeline**: `training_pipeline` (run: `29f63381`)
+**Model**: `breast_cancer_classifier` (v6)
+**Pipeline**: `training_pipeline` (run: `3c6a2c20`)
 **Commit**: `unknown`
-**Generated**: 2026-01-28 16:23 UTC
+**Generated**: 2026-01-28 16:48 UTC
 
 ---
 

@@ -31,6 +31,7 @@ from typing import Annotated
 import pandas as pd
 from zenml import get_step_context, step
 from zenml.logger import get_logger
+from zenml.types import HTMLString
 
 logger = get_logger(__name__)
 
@@ -120,15 +121,16 @@ def generate_training_report(
     max_missing_fraction: float = 0.1,
     write_to_file: bool = True,
     output_path: str = "training_report.md",
-) -> Annotated[tuple[str, bool], "training_report"]:
+) -> Annotated[HTMLString, "training_report"]:
     """Generate a comprehensive training report for PR comments and audit trails.
 
-    This step produces a markdown report summarizing:
+    This step produces an HTML report summarizing:
     - Data quality checks (row count, missing values, duplicates)
     - Model performance metrics vs thresholds
     - Overall pass/fail decision
 
     The report can be used for:
+    - ZenML dashboard visualization (HTMLString)
     - PR comments (immediate visibility)
     - Audit trails (compliance)
     - Model approval gates (governance)
@@ -146,7 +148,7 @@ def generate_training_report(
         output_path: File path for report output
 
     Returns:
-        Tuple of (report_markdown, overall_passed)
+        HTMLString report for dashboard visualization
     """
     context = get_step_context()
 
@@ -242,7 +244,9 @@ def generate_training_report(
 
     logger.info(f"Training report generated: {decision}")
 
-    return report, overall_passed
+    # Convert to HTML for dashboard visualization
+    html_report = generate_html_report(report)
+    return HTMLString(html_report)
 
 
 def generate_html_report(markdown_report: str) -> str:
