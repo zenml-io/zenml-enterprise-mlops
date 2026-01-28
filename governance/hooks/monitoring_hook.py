@@ -14,10 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Monitoring hook for platform governance.
+"""Performance monitoring hook for external systems integration.
 
-This hook can be used to send metrics to external monitoring systems
-like Arize, Datadog, or custom dashboards.
+This hook integrates with external monitoring systems (Datadog, Prometheus, etc.)
+to track pipeline performance outside of ZenML.
+
+Note: ZenML already tracks execution time, artifacts, and metadata internally.
+Use this hook only if you need to send metrics to external systems.
 """
 
 from zenml import get_step_context
@@ -27,20 +30,50 @@ logger = get_logger(__name__)
 
 
 def monitoring_success_hook() -> None:
-    """Send monitoring data after successful step execution.
+    """Send performance metrics to external monitoring systems.
 
-    This hook would integrate with your monitoring solution (e.g., Arize)
-    to track model performance, data quality, and system health.
+    ZenML already tracks execution time, artifacts, and metadata.
+    This hook is for integrating with external systems like Datadog,
+    Prometheus, or Arize for unified observability.
 
-    Platform team configures the monitoring endpoints and requirements.
+    Example integrations:
+    - Datadog: Track step duration as custom metrics
+    - Prometheus: Export pipeline execution stats
+    - Arize: Monitor model performance over time
     """
     try:
         context = get_step_context()
-        step_name = context.step_run.name
+        step_run = context.step_run
 
-        # Placeholder for monitoring integration
-        # In production, this would send metrics to Arize/Datadog/etc.
-        logger.info(f"Platform governance: Monitoring data sent for step '{step_name}'")
+        # Calculate execution time
+        if step_run.start_time and step_run.end_time:
+            execution_time = (step_run.end_time - step_run.start_time).total_seconds()
+        else:
+            execution_time = 0.0
+
+        # TODO: Send to your monitoring system
+        # Example for Datadog:
+        # from datadog import statsd
+        # statsd.gauge(
+        #     'zenml.step.duration',
+        #     execution_time,
+        #     tags=[
+        #         f'pipeline:{context.pipeline_run.name}',
+        #         f'step:{step_run.name}',
+        #         f'workspace:{Client().active_workspace.name}'
+        #     ]
+        # )
+
+        # Example for Prometheus:
+        # from prometheus_client import Gauge
+        # step_duration = Gauge('zenml_step_duration_seconds', 'Step execution time')
+        # step_duration.set(execution_time)
+
+        logger.info(
+            f"Step '{step_run.name}' completed in {execution_time:.2f}s. "
+            f"Add monitoring integration here."
+        )
 
     except Exception as e:
+        # Never fail pipeline due to monitoring
         logger.warning(f"Monitoring hook failed: {e}")

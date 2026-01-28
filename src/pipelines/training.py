@@ -30,14 +30,10 @@ from typing import Annotated, Optional
 
 import pandas as pd
 from sklearn.decomposition import PCA
-from zenml import Model, get_step_context, log_metadata, pipeline, step
+from zenml import Model, log_metadata, pipeline, step
 from zenml.logger import get_logger
 
 # Import platform governance
-from governance.hooks import (
-    pipeline_failure_hook,
-    pipeline_success_hook,
-)
 from governance.steps import (
     generate_training_report,
     validate_data_quality,
@@ -208,10 +204,14 @@ def log_environment_metadata(
     model=Model(
         name="breast_cancer_classifier",
         description="Binary classification model for risk prediction",
-        tags=["classification", "sklearn", "production"],
+        tags=[
+            "classification",
+            "sklearn",
+            "production",
+            "use_case:breast_cancer",
+            "owner_team:ml-platform",
+        ],
     ),
-    on_success=pipeline_success_hook,
-    on_failure=pipeline_failure_hook,
     enable_cache=False,
 )
 def training_pipeline(

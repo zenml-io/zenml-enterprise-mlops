@@ -73,16 +73,17 @@ class EnhancedDataFrameMaterializer(BaseMaterializer):
             df.to_parquet(f, index=False)
 
         # Save governance metadata
-        metadata = {
+        # Note: ZenML's artifact system automatically extracts metadata
+        # from materializers for logging and tracking
+        _metadata = {
             "shape": df.shape,
             "columns": df.columns.tolist(),
             "dtypes": df.dtypes.astype(str).to_dict(),
             "memory_bytes": df.memory_usage(deep=True).sum(),
             "missing_values": df.isnull().sum().to_dict(),
-            "missing_percentage": (df.isnull().sum() / len(df) * 100).to_dict() if len(df) > 0 else {},
+            "missing_percentage": (df.isnull().sum() / len(df) * 100).to_dict()
+            if len(df) > 0
+            else {},
         }
-
-        # Platform governance: extract metadata for ZenML to log
-        # Note: Metadata is automatically extracted by ZenML's artifact system
-        # The metadata dict above will be available via artifact.metadata
+        # TODO: Return metadata when ZenML supports it in materializers
         self.extract_metadata(df)

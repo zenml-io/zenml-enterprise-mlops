@@ -50,10 +50,10 @@ Example:
 Uses breast cancer dataset features for demo. See PatientData model for all fields.
 """
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel
-from zenml import Model, get_step_context, pipeline, step
+from zenml import pipeline, step
 from zenml.enums import ModelStages
 
 
@@ -168,7 +168,6 @@ def predict(
 
     import numpy as np
     from zenml.client import Client
-    from zenml.enums import ModelStages
 
     # Load model and scaler directly from Model Control Plane
     client = Client()
@@ -233,12 +232,7 @@ def predict(
     )
 
 
-@pipeline(
-    model=Model(
-        name="breast_cancer_classifier",
-        version=ModelStages.PRODUCTION,
-    ),
-)
+@pipeline
 def inference_service(
     patient_data: PatientData = PatientData(),
 ) -> PredictionResult:
@@ -265,43 +259,3 @@ def inference_service(
     processed = preprocess_request(patient_data=patient_data)
     result = predict(processed_features=processed)
     return result
-
-
-# Optional: Custom health check endpoint
-async def health_check() -> dict[str, Any]:
-    """Custom health check for the deployed service."""
-    from zenml.client import Client
-
-    client = Client()
-    try:
-        # Verify we can access the model
-        mv = client.get_model_version(
-            model_name_or_id="breast_cancer_classifier",
-            model_version_name_or_number_or_id=ModelStages.PRODUCTION,
-        )
-        return {
-            "status": "healthy",
-            "model": "breast_cancer_classifier",
-            "version": str(mv.number),
-        }
-    except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
-
-
-# Deployment with custom endpoints (for advanced use cases)
-# from zenml.config import DeploymentSettings, EndpointSpec, EndpointMethod
-#
-# inference_service_with_health = inference_service.with_options(
-#     settings={
-#         "deployment": DeploymentSettings(
-#             custom_endpoints=[
-#                 EndpointSpec(
-#                     path="/health",
-#                     method=EndpointMethod.GET,
-#                     handler=health_check,
-#                     auth_required=False,
-#                 ),
-#             ],
-#         ),
-#     }
-# )

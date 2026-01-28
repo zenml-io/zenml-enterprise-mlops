@@ -27,6 +27,7 @@ maintaining audit trail links back to the source workspace.
 
 import os
 import tempfile
+from pathlib import Path
 from typing import Annotated, Optional
 
 import joblib
@@ -40,11 +41,15 @@ logger = get_logger(__name__)
 
 # Default GCP project for model exchange bucket
 DEFAULT_GCP_PROJECT = os.getenv("GCP_PROJECT_ID", "zenml-core")
-DEFAULT_EXCHANGE_BUCKET = os.getenv("MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange")
+DEFAULT_EXCHANGE_BUCKET = os.getenv(
+    "MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange"
+)
 
 # Shared Artifact Store Mode
 # When True, both workspaces use the same artifact store bucket, so ZenML's fileio works.
-USE_SHARED_ARTIFACT_STORE = os.getenv("USE_SHARED_ARTIFACT_STORE", "false").lower() == "true"
+USE_SHARED_ARTIFACT_STORE = (
+    os.getenv("USE_SHARED_ARTIFACT_STORE", "false").lower() == "true"
+)
 
 
 def _download_from_gcs(gcs_uri: str, local_path: str) -> None:
@@ -60,6 +65,7 @@ def _download_from_gcs(gcs_uri: str, local_path: str) -> None:
     if USE_SHARED_ARTIFACT_STORE:
         # Shared artifact store: fileio works because bucket is within bounds
         from zenml.io import fileio
+
         fileio.copy(gcs_uri, local_path, overwrite=True)
     else:
         # Separate buckets: use direct GCS client to bypass bounds validation
@@ -110,8 +116,9 @@ def download_and_register_model(
         _download_from_gcs(model_uri, tmp_path)
         model = joblib.load(tmp_path)
     finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        tmp_file = Path(tmp_path)
+        if tmp_file.exists():
+            tmp_file.unlink()
 
     logger.info("Downloaded and registered model artifact")
     return model
@@ -151,8 +158,9 @@ def download_and_register_scaler(
         _download_from_gcs(scaler_uri, tmp_path)
         scaler = joblib.load(tmp_path)
     finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        tmp_file = Path(tmp_path)
+        if tmp_file.exists():
+            tmp_file.unlink()
 
     logger.info("Downloaded and registered scaler artifact")
     return scaler
@@ -198,6 +206,7 @@ def log_cross_workspace_metadata(
 
     # Get project name from client
     from zenml.client import Client
+
     client = Client()
     project_name = client.active_project.name
 
@@ -211,7 +220,11 @@ def log_cross_workspace_metadata(
         )
 
     # Update the last promotion_chain entry (the import action) with the run URL
-    if promotion_chain and promotion_chain[-1].get("action") == "imported" and import_run_url:
+    if (
+        promotion_chain
+        and promotion_chain[-1].get("action") == "imported"
+        and import_run_url
+    ):
         promotion_chain[-1]["import_run_url"] = import_run_url
 
     # Log source lineage information

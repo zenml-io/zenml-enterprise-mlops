@@ -82,7 +82,9 @@ STANDARD_DOCKER_SETTINGS = DockerSettings(
 GPU_DOCKER_SETTINGS = DockerSettings(
     parent_image="pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime",
     python_package_installer="uv",
-    python_package_installer_args={"system": None},  # None = flag without value (--system)
+    python_package_installer_args={
+        "system": None
+    },  # None = flag without value (--system)
     apt_packages=[
         "libsm6",  # OpenCV dependencies
         "libxext6",

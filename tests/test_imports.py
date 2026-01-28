@@ -98,6 +98,7 @@ class TestGovernanceImports:
             alerter_failure_hook,
             alerter_success_hook,
             compliance_failure_hook,
+            model_governance_hook,
             monitoring_success_hook,
             pipeline_failure_hook,
             pipeline_success_hook,
@@ -107,6 +108,9 @@ class TestGovernanceImports:
         assert alerter_failure_hook is not None
         assert pipeline_success_hook is not None
         assert pipeline_failure_hook is not None
+        assert model_governance_hook is not None
+        assert monitoring_success_hook is not None
+        assert compliance_failure_hook is not None
         assert monitoring_success_hook is not None
         assert compliance_failure_hook is not None
 

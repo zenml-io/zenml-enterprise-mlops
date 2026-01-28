@@ -63,9 +63,9 @@ def _generate_data_quality_section(
 
 | Check | Threshold | Actual | Result |
 |-------|-----------|--------|--------|
-| Minimum rows | {min_rows} | {n_rows} | {'✅ PASS' if row_check else '❌ FAIL'} |
-| Missing values | ≤{max_missing_fraction:.1%} | {missing_fraction:.2%} | {'✅ PASS' if missing_check else '❌ FAIL'} |
-| Duplicate rows | - | {duplicates} | {'⚠️ WARNING' if duplicates > 0 else '✅ OK'} |
+| Minimum rows | {min_rows} | {n_rows} | {"✅ PASS" if row_check else "❌ FAIL"} |
+| Missing values | ≤{max_missing_fraction:.1%} | {missing_fraction:.2%} | {"✅ PASS" if missing_check else "❌ FAIL"} |
+| Duplicate rows | - | {duplicates} | {"⚠️ WARNING" if duplicates > 0 else "✅ OK"} |
 
 **Summary**: {n_rows:,} rows × {n_cols} columns, {missing_count:,} missing values
 """
@@ -100,9 +100,9 @@ def _generate_model_performance_section(
 
 | Metric | Threshold | Actual | Result |
 |--------|-----------|--------|--------|
-| Accuracy | ≥{min_accuracy:.1%} | {accuracy:.2%} | {'✅ PASS' if acc_check else '❌ FAIL'} |
-| Precision | ≥{min_precision:.1%} | {precision:.2%} | {'✅ PASS' if prec_check else '❌ FAIL'} |
-| Recall | ≥{min_recall:.1%} | {recall:.2%} | {'✅ PASS' if rec_check else '❌ FAIL'} |
+| Accuracy | ≥{min_accuracy:.1%} | {accuracy:.2%} | {"✅ PASS" if acc_check else "❌ FAIL"} |
+| Precision | ≥{min_precision:.1%} | {precision:.2%} | {"✅ PASS" if prec_check else "❌ FAIL"} |
+| Recall | ≥{min_recall:.1%} | {recall:.2%} | {"✅ PASS" if rec_check else "❌ FAIL"} |
 | F1 Score | - | {f1:.2%} | ℹ️ INFO |
 | ROC AUC | - | {roc_auc:.2%} | ℹ️ INFO |
 """
@@ -169,7 +169,10 @@ def generate_training_report(
         X_train, "Training Data", min_rows, max_missing_fraction
     )
     test_section, test_passed = _generate_data_quality_section(
-        X_test, "Test Data", min_rows // 5, max_missing_fraction  # Lower threshold for test
+        X_test,
+        "Test Data",
+        min_rows // 5,
+        max_missing_fraction,  # Lower threshold for test
     )
     perf_section, perf_passed = _generate_model_performance_section(
         metrics, min_accuracy, min_precision, min_recall
@@ -192,9 +195,9 @@ def generate_training_report(
 
 | Category | Status |
 |----------|--------|
-| Training Data Quality | {'✅ PASS' if train_passed else '❌ FAIL'} |
-| Test Data Quality | {'✅ PASS' if test_passed else '❌ FAIL'} |
-| Model Performance | {'✅ PASS' if perf_passed else '❌ FAIL'} |
+| Training Data Quality | {"✅ PASS" if train_passed else "❌ FAIL"} |
+| Test Data Quality | {"✅ PASS" if test_passed else "❌ FAIL"} |
+| Model Performance | {"✅ PASS" if perf_passed else "❌ FAIL"} |
 
 ---
 
@@ -226,7 +229,7 @@ def generate_training_report(
 """
 
     # Add links section
-    report += f"""
+    report += """
 ---
 
 ## Links
@@ -238,7 +241,8 @@ def generate_training_report(
 
     # Write to file for CI
     if write_to_file:
-        with open(output_path, "w") as f:
+        output_file = Path(output_path)
+        with output_file.open("w") as f:
             f.write(report)
         logger.info(f"Training report written to {output_path}")
 

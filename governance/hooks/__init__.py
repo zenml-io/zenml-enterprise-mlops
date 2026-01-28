@@ -20,16 +20,20 @@ Hooks are automatically executed at pipeline lifecycle events
 to enforce platform policies without modifying user code.
 
 Available Hooks:
-    - alerter_success_hook: Send Slack notification on step success
-    - alerter_failure_hook: Send Slack notification on step failure
-    - pipeline_success_hook: Send notification on pipeline completion
-    - pipeline_failure_hook: Send notification on pipeline failure
-    - compliance_failure_hook: Log compliance events on failures
-    - monitoring_success_hook: Log monitoring metrics on success
+    Alerting (External Notifications):
+        - alerter_failure_hook: Send Slack alert on step failure
+        - alerter_success_hook: Send Slack notification on step success
+        - pipeline_failure_hook: Send alert on pipeline failure
+        - pipeline_success_hook: Send notification on pipeline completion
 
-Note:
-    MLflow experiment tracking is handled automatically by ZenML's
-    experiment tracker stack component - no hook needed!
+    Policy Enforcement:
+        - model_governance_hook: Enforce required tags and naming conventions
+
+    External Monitoring:
+        - monitoring_success_hook: Send metrics to Datadog/Prometheus
+
+    Legacy:
+        - compliance_failure_hook: Deprecated, kept for backward compatibility
 """
 
 from governance.hooks.alerting_hook import (
@@ -38,17 +42,18 @@ from governance.hooks.alerting_hook import (
     pipeline_failure_hook,
     pipeline_success_hook,
 )
-from governance.hooks.compliance_hook import compliance_failure_hook
+from governance.hooks.compliance_hook import (
+    compliance_failure_hook,
+    model_governance_hook,
+)
 from governance.hooks.monitoring_hook import monitoring_success_hook
 
 __all__ = [
-    # Alerting hooks (Slack, etc.)
-    "alerter_success_hook",
     "alerter_failure_hook",
-    "pipeline_success_hook",
-    "pipeline_failure_hook",
-    # Compliance hooks
+    "alerter_success_hook",
     "compliance_failure_hook",
-    # Monitoring hooks
+    "model_governance_hook",
     "monitoring_success_hook",
+    "pipeline_failure_hook",
+    "pipeline_success_hook",
 ]

@@ -46,7 +46,9 @@ from zenml.logger import get_logger
 logger = get_logger(__name__)
 
 
-def set_stack_for_environment(environment: str, stack_override: str | None = None) -> None:
+def set_stack_for_environment(
+    environment: str, stack_override: str | None = None
+) -> None:
     """Set the appropriate stack based on environment.
 
     Args:
@@ -70,7 +72,9 @@ def set_stack_for_environment(environment: str, stack_override: str | None = Non
             client.activate_stack(stack_name)
             logger.info(f"Activated stack: {stack_name}")
         except KeyError:
-            logger.warning(f"Stack '{stack_name}' not found, using current stack: {client.active_stack_model.name}")
+            logger.warning(
+                f"Stack '{stack_name}' not found, using current stack: {client.active_stack_model.name}"
+            )
 
 
 @click.command()
@@ -150,21 +154,40 @@ def main(
         if min_accuracy is not None:
             kwargs["min_accuracy"] = min_accuracy
 
-        # Local: fast iteration without governance
-        # Staging: full governance enforcement
+        # Apply governance hooks based on environment
         if environment == "local":
-            logger.info("Using local mode (no governance, simpler DAG)")
+            # Local: fast iteration without governance
+            logger.info("Using local mode (no governance hooks)")
             kwargs["enable_governance"] = False
-            training_pipeline(**kwargs)
+            pipeline_to_run = training_pipeline
         else:
-            logger.info("Using staging mode (full governance)")
+            # Staging/Production: full governance enforcement
+            logger.info(f"Using {environment} mode (with governance hooks)")
             kwargs["enable_governance"] = True
-            # Run with config file, CLI args override config
-            if config_path.exists():
-                training_pipeline.with_options(config_path=str(config_path))(**kwargs)
-            else:
-                training_pipeline(**kwargs)
 
+            # Import and attach hooks for non-local environments
+            from governance.hooks import (
+                model_governance_hook,
+                pipeline_failure_hook,
+                pipeline_success_hook,
+            )
+
+            # Create combined success hook (ZenML doesn't support hook lists)
+            def combined_success_hook():
+                pipeline_success_hook()
+                model_governance_hook()
+
+            # Apply hooks dynamically
+            pipeline_to_run = training_pipeline.with_options(
+                on_success=combined_success_hook,
+                on_failure=pipeline_failure_hook,
+            )
+
+        # Run with config file if exists, CLI args override config
+        if config_path.exists() and environment != "local":
+            pipeline_to_run = pipeline_to_run.with_options(config_path=str(config_path))
+
+        pipeline_to_run(**kwargs)
 
     elif pipeline == "batch_inference":
         from src.pipelines.batch_inference import batch_inference_pipeline

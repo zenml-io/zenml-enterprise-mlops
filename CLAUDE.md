@@ -93,7 +93,7 @@ Both get: Clean pipelines, hooks, GitOps, Model Control Plane, lineage tracking
 **Purpose**: Enforce standards automatically without touching ML code
 
 **Contents**:
-- `hooks/` - Automatic enforcement (MLflow logging, compliance)
+- `hooks/` - Automatic enforcement (alerting, policy validation)
 - `steps/` - Shared validation (data quality, model performance)
 - `materializers/` - Enhanced artifact handling with metadata
 - `stacks/terraform/` - Infrastructure as Code
@@ -101,10 +101,10 @@ Both get: Clean pipelines, hooks, GitOps, Model Control Plane, lineage tracking
 **Pattern**: Data scientists import from governance, never modify it
 
 ```python
-from governance.hooks import mlflow_success_hook
+from governance.hooks import pipeline_success_hook
 from governance.steps import validate_data_quality
 
-@pipeline(on_success=mlflow_success_hook)  # Automatic enforcement
+@pipeline(on_success=pipeline_success_hook)  # Automatic governance
 def training_pipeline():
     data = load_data()
     data = validate_data_quality(data)  # Shared governance
@@ -185,24 +185,60 @@ Model: breast_cancer_classifier
 
 ### 1. Hook-Based Governance
 
-**Do**:
+**Do** (environment-driven hooks):
 ```python
-@pipeline(on_success=mlflow_success_hook, on_failure=compliance_failure_hook)
+# Pipeline code stays clean - no hardcoded hooks
+@pipeline(
+    model=Model(
+        name="breast_cancer_classifier",
+        tags=["use_case:breast_cancer", "owner_team:ml-platform"],
+    ),
+)
 def training_pipeline():
     # Clean ML code
     pass
+
+# run.py applies hooks based on environment
+if environment == "staging" or environment == "production":
+    from governance.hooks import (
+        model_governance_hook,
+        pipeline_success_hook,
+        pipeline_failure_hook,
+    )
+
+    # Combine hooks (ZenML expects single callable, not list)
+    def combined_success_hook():
+        pipeline_success_hook()
+        model_governance_hook()
+
+    training_pipeline.with_options(
+        on_success=combined_success_hook,
+        on_failure=pipeline_failure_hook,
+    )(**kwargs)
+else:
+    # Local dev: no hooks, fast iteration
+    training_pipeline(**kwargs)
 ```
 
-**Don't**:
+**Don't** (governance mixed into ML code):
 ```python
 @step
 def train_model(data):
     model = fit_model(data)
-    log_to_mlflow(model)  # Governance mixed in - BAD!
+    send_slack_notification(model)  # Governance mixed in - BAD!
     return model
 ```
 
-**Why**: Platform team controls governance without touching ML code
+**Why**:
+- Pipeline code stays clean and testable
+- Platform team controls governance without touching ML code
+- Local dev is fast (no Slack spam)
+- Staging/production get full governance
+
+**Available Hooks**:
+- `alerter_*_hook`, `pipeline_*_hook` - Send Slack/PagerDuty notifications
+- `model_governance_hook` - Enforce required tags and naming conventions
+- `monitoring_success_hook` - Send metrics to Datadog/Prometheus
 
 ### 2. No Pipeline-Level Conditionals
 
@@ -475,7 +511,7 @@ These demonstrate key patterns - changing them breaks the demo:
 - ✋ `src/pipelines/batch_inference.py` - Shows loading production model by stage
 - ✋ `src/pipelines/champion_challenger.py` - Shows A/B model comparison pattern
 - ✋ `src/pipelines/realtime_inference.py` - Shows Pipeline Deployments for serving
-- ✋ `governance/hooks/mlflow_hook.py` - Shows hook-based governance
+- ✋ `governance/hooks/alerting_hook.py` - Shows hook-based governance and notifications
 - ✋ `scripts/promote_cross_workspace.py` - Shows cross-workspace promotion with metadata
 - ✋ `.github/workflows/promote-to-production.yml` - Shows cross-workspace GitOps pattern
 

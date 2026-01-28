@@ -52,32 +52,50 @@ Understanding when to use stack components vs hooks:
 
 ### Hooks (Automatic Notifications)
 
-Hooks send Slack notifications and log compliance events:
+Hooks are applied **dynamically based on environment** - not hardcoded in pipeline decorators.
+
+**Local development**: No hooks (fast iteration, no Slack spam)
+**Staging/Production**: Full governance hooks (alerts, validation, monitoring)
+
+Hooks are applied in `run.py`:
 
 ```python
-from zenml import pipeline
-from governance.hooks import pipeline_success_hook, pipeline_failure_hook
+# run.py applies hooks based on environment
+if environment == "local":
+    # No hooks - clean and fast
+    training_pipeline(**kwargs)
+else:
+    # Staging/production - apply governance hooks
+    from governance.hooks import (
+        model_governance_hook,
+        pipeline_success_hook,
+        pipeline_failure_hook,
+    )
 
-@pipeline(
-    on_success=pipeline_success_hook,    # Slack notification on completion
-    on_failure=pipeline_failure_hook,    # Slack alert + compliance log
-)
-def training_pipeline():
-    # Clean ML code - no alerting mixed in
-    data = load_data()
-    model = train_model(data)
-    return model
+    # Combine multiple success hooks (ZenML expects single callable)
+    def combined_success_hook():
+        pipeline_success_hook()
+        model_governance_hook()
+
+    training_pipeline.with_options(
+        on_success=combined_success_hook,
+        on_failure=pipeline_failure_hook,
+    )(**kwargs)
 ```
+
+This keeps pipeline code clean while enabling environment-specific governance.
 
 #### Available Hooks
 
 | Hook | When it runs | What it does |
 |------|--------------|--------------|
-| `alerter_success_hook` | Step succeeds | Sends Slack message |
-| `alerter_failure_hook` | Step fails | Sends Slack alert with error |
+| `alerter_success_hook` | Step succeeds | Sends Slack notification |
+| `alerter_failure_hook` | Step fails | Sends Slack alert with error details |
 | `pipeline_success_hook` | Pipeline completes | Sends completion notification |
-| `pipeline_failure_hook` | Pipeline fails | Sends alert + logs for compliance |
-| `compliance_failure_hook` | Pipeline fails | Logs to audit system |
+| `pipeline_failure_hook` | Pipeline fails | Sends critical failure alert |
+| `model_governance_hook` | Model training succeeds | Enforces required tags and naming conventions |
+| `monitoring_success_hook` | Step succeeds | Sends metrics to external systems (Datadog, Prometheus) |
+
 
 ### Stack Component: Slack Alerter
 
@@ -93,6 +111,26 @@ zenml stack update my_stack --alerter slack_alerter
 ```
 
 The alerting hooks will automatically use the configured alerter.
+
+#### Hook Enforcement
+
+Hooks enforce governance policies automatically:
+
+- `model_governance_hook` - Validates required tags and naming conventions
+- `pipeline_success_hook` - Sends Slack notification on completion
+- `pipeline_failure_hook` - Sends alert on failure
+
+Models must have required tags:
+```python
+@pipeline(
+    model=Model(
+        name="breast_cancer_classifier",
+        tags=["use_case:breast_cancer", "owner_team:ml-platform"]  # Required!
+    ),
+)
+```
+
+The `model_governance_hook` enforces these requirements in staging/production.
 
 ### Shared Validation Steps
 

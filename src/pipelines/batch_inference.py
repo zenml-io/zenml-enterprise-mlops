@@ -79,7 +79,9 @@ def scale_and_predict(
 
     high_risk_count = (predictions == 1).sum()
     total_predictions = len(predictions)
-    high_risk_pct = (high_risk_count / total_predictions * 100) if total_predictions > 0 else 0.0
+    high_risk_pct = (
+        (high_risk_count / total_predictions * 100) if total_predictions > 0 else 0.0
+    )
     logger.info(
         f"Predictions complete: {high_risk_count} high-risk identified "
         f"({high_risk_pct:.1f}%)"
