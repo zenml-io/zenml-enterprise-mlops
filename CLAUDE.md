@@ -201,18 +201,12 @@ def training_pipeline():
 # run.py applies hooks based on environment
 if environment == "staging" or environment == "production":
     from governance.hooks import (
-        model_governance_hook,
-        pipeline_success_hook,
+        pipeline_governance_success_hook,  # Combines alerting + governance
         pipeline_failure_hook,
     )
 
-    # Combine hooks (ZenML expects single callable, not list)
-    def combined_success_hook():
-        pipeline_success_hook()
-        model_governance_hook()
-
     training_pipeline.with_options(
-        on_success=combined_success_hook,
+        on_success=pipeline_governance_success_hook,
         on_failure=pipeline_failure_hook,
     )(**kwargs)
 else:

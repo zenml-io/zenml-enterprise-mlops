@@ -67,18 +67,12 @@ if environment == "local":
 else:
     # Staging/production - apply governance hooks
     from governance.hooks import (
-        model_governance_hook,
-        pipeline_success_hook,
+        pipeline_governance_success_hook,  # Combined: alerting + validation
         pipeline_failure_hook,
     )
 
-    # Combine multiple success hooks (ZenML expects single callable)
-    def combined_success_hook():
-        pipeline_success_hook()
-        model_governance_hook()
-
     training_pipeline.with_options(
-        on_success=combined_success_hook,
+        on_success=pipeline_governance_success_hook,
         on_failure=pipeline_failure_hook,
     )(**kwargs)
 ```

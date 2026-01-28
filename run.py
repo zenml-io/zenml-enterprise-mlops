@@ -167,19 +167,13 @@ def main(
 
             # Import and attach hooks for non-local environments
             from governance.hooks import (
-                model_governance_hook,
                 pipeline_failure_hook,
-                pipeline_success_hook,
+                pipeline_governance_success_hook,
             )
-
-            # Create combined success hook (ZenML doesn't support hook lists)
-            def combined_success_hook():
-                pipeline_success_hook()
-                model_governance_hook()
 
             # Apply hooks dynamically
             pipeline_to_run = training_pipeline.with_options(
-                on_success=combined_success_hook,
+                on_success=pipeline_governance_success_hook,
                 on_failure=pipeline_failure_hook,
             )
 

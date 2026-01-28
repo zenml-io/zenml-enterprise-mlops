@@ -48,6 +48,17 @@ from governance.hooks.compliance_hook import (
 )
 from governance.hooks.monitoring_hook import monitoring_success_hook
 
+
+def pipeline_governance_success_hook() -> None:
+    """Combined success hook for pipeline-level governance.
+
+    Runs both alerting and governance validation when pipeline succeeds.
+    This is used in staging/production environments.
+    """
+    pipeline_success_hook()
+    model_governance_hook()
+
+
 __all__ = [
     "alerter_failure_hook",
     "alerter_success_hook",
@@ -55,5 +66,6 @@ __all__ = [
     "model_governance_hook",
     "monitoring_success_hook",
     "pipeline_failure_hook",
+    "pipeline_governance_success_hook",
     "pipeline_success_hook",
 ]
