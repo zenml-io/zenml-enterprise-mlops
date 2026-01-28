@@ -89,6 +89,7 @@ dmypy.json
 *.tfstate.*
 .terraform/
 terraform.tfvars
+tfplan
 
 # CI/CD artifacts
 export_path.txt
