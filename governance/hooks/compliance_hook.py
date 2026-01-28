@@ -65,7 +65,15 @@ def model_governance_hook() -> None:
 
         # Check required tags - look for use_case: and owner_team: prefixes
         required_tag_prefixes = ["use_case:", "owner_team:"]
-        model_tags = model_version.tags if model_version.tags else []
+        # Extract tag names from TagResponse objects
+        model_tags = (
+            [
+                tag.name if hasattr(tag, "name") else str(tag)
+                for tag in model_version.tags
+            ]
+            if model_version.tags
+            else []
+        )
         missing_prefixes = [
             prefix
             for prefix in required_tag_prefixes
