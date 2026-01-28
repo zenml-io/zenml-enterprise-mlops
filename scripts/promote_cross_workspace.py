@@ -85,13 +85,17 @@ load_dotenv()
 logger = get_logger(__name__)
 
 # Configuration (with env var overrides)
-DEFAULT_EXCHANGE_BUCKET = os.getenv("MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange")
+DEFAULT_EXCHANGE_BUCKET = os.getenv(
+    "MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange"
+)
 DEFAULT_GCP_PROJECT = os.getenv("GCP_PROJECT_ID", "zenml-core")
 
 # Shared Artifact Store Mode
 # When True, both workspaces use the same artifact store bucket, so ZenML's fileio works.
 # When False (legacy), uses direct GCS client to bypass artifact store bounds.
-USE_SHARED_ARTIFACT_STORE = os.getenv("USE_SHARED_ARTIFACT_STORE", "false").lower() == "true"
+USE_SHARED_ARTIFACT_STORE = (
+    os.getenv("USE_SHARED_ARTIFACT_STORE", "false").lower() == "true"
+)
 
 WORKSPACE_CONFIG = {
     "enterprise-dev-staging": {
@@ -121,11 +125,14 @@ def _upload_to_gcs(local_path: str, gcs_uri: str, bucket_name: str) -> None:
     if USE_SHARED_ARTIFACT_STORE:
         # Shared artifact store: fileio works because bucket is within bounds
         from zenml.io import fileio
+
         fileio.copy(local_path, gcs_uri, overwrite=True)
     else:
         # Separate buckets: use direct GCS client to bypass bounds validation
-        client = storage.Client(project=DEFAULT_GCP_PROJECT)
-        bucket = client.bucket(bucket_name)
+        # Use user_project for requester pays buckets
+        gcp_project = os.getenv("GCP_PROJECT_ID", DEFAULT_GCP_PROJECT)
+        client = storage.Client(project=gcp_project)
+        bucket = client.bucket(bucket_name, user_project=gcp_project)
         blob_path = gcs_uri.replace(f"gs://{bucket_name}/", "")
         blob = bucket.blob(blob_path)
         blob.upload_from_filename(local_path)
@@ -145,11 +152,14 @@ def _download_from_gcs(gcs_uri: str, local_path: str, bucket_name: str) -> None:
     if USE_SHARED_ARTIFACT_STORE:
         # Shared artifact store: fileio works because bucket is within bounds
         from zenml.io import fileio
+
         fileio.copy(gcs_uri, local_path, overwrite=True)
     else:
         # Separate buckets: use direct GCS client to bypass bounds validation
-        client = storage.Client(project=DEFAULT_GCP_PROJECT)
-        bucket = client.bucket(bucket_name)
+        # Use user_project for requester pays buckets
+        gcp_project = os.getenv("GCP_PROJECT_ID", DEFAULT_GCP_PROJECT)
+        client = storage.Client(project=gcp_project)
+        bucket = client.bucket(bucket_name, user_project=gcp_project)
         blob_path = gcs_uri.replace(f"gs://{bucket_name}/", "")
         blob = bucket.blob(blob_path)
         blob.download_to_filename(local_path)
@@ -164,7 +174,13 @@ def _validate_manifest(manifest: dict) -> None:
     Raises:
         ValueError: If required fields are missing
     """
-    required_fields = ["model_name", "export_path", "source", "artifacts", "promotion_chain"]
+    required_fields = [
+        "model_name",
+        "export_path",
+        "source",
+        "artifacts",
+        "promotion_chain",
+    ]
     missing = [f for f in required_fields if f not in manifest]
     if missing:
         raise ValueError(f"Invalid manifest: missing required fields: {missing}")
@@ -219,6 +235,7 @@ def connect_to_workspace(workspace_name: str) -> Client:
     # the ZenML changelog for Client initialization changes.
     Client._reset_instance()
     from zenml.config.global_config import GlobalConfiguration
+
     gc = GlobalConfiguration()
     gc._zen_store = None
 
@@ -346,7 +363,8 @@ def export_model(
         },
         # Lineage chain - includes any existing promotions (e.g., none → staging)
         # and appends the export action
-        "promotion_chain": existing_chain + [
+        "promotion_chain": existing_chain
+        + [
             {
                 "action": "exported",
                 "from_workspace": source_workspace,
@@ -489,7 +507,7 @@ def import_model(
         tmp_path = tmp.name
     try:
         _download_from_gcs(manifest_path, tmp_path, exchange_bucket)
-        with open(tmp_path, "r") as f:
+        with open(tmp_path) as f:
             manifest = json.load(f)
     finally:
         if os.path.exists(tmp_path):
@@ -499,15 +517,19 @@ def import_model(
     _validate_manifest(manifest)
 
     logger.info(f"Loaded manifest for {manifest['model_name']}")
-    logger.info(f"Source: {manifest['source']['workspace']} v{manifest['source']['model_version']}")
+    logger.info(
+        f"Source: {manifest['source']['workspace']} v{manifest['source']['model_version']}"
+    )
 
     # Add import entry to promotion chain
-    manifest["promotion_chain"].append({
-        "action": "imported",
-        "to_workspace": dest_workspace,
-        "to_stage": dest_stage,
-        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-    })
+    manifest["promotion_chain"].append(
+        {
+            "action": "imported",
+            "to_workspace": dest_workspace,
+            "to_stage": dest_stage,
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        }
+    )
 
     # Run import pipeline (steps download artifacts from GCS directly)
     logger.info("Running import pipeline...")
@@ -630,7 +652,9 @@ def promote_cross_workspace(
             --dest-workspace enterprise-production \\
             --import-from gs://zenml-core-model-exchange/exports/...
     """
-    bucket = exchange_bucket or os.environ.get("MODEL_EXCHANGE_BUCKET", DEFAULT_EXCHANGE_BUCKET)
+    bucket = exchange_bucket or os.environ.get(
+        "MODEL_EXCHANGE_BUCKET", DEFAULT_EXCHANGE_BUCKET
+    )
 
     logger.info("=" * 60)
     logger.info("Cross-Workspace Model Promotion")
@@ -685,7 +709,7 @@ def promote_cross_workspace(
             tmp_path = tmp.name
         try:
             _download_from_gcs(manifest_path, tmp_path, bucket)
-            with open(tmp_path, "r") as f:
+            with open(tmp_path) as f:
                 manifest = json.load(f)
         finally:
             if os.path.exists(tmp_path):
@@ -752,13 +776,17 @@ def promote_cross_workspace(
                 model_name=model,
                 model_version=source_model_version.number,
             )
-            logger.info(f"  ✅ Source model v{source_model_version.number} updated with promotion link")
+            logger.info(
+                f"  ✅ Source model v{source_model_version.number} updated with promotion link"
+            )
 
         logger.info("\n" + "=" * 60)
         logger.info("✅ PROMOTION COMPLETE")
         logger.info("=" * 60)
         logger.info(f"Model: {model}")
-        logger.info(f"Source: {manifest['source']['workspace']} v{manifest['source']['model_version']}")
+        logger.info(
+            f"Source: {manifest['source']['workspace']} v{manifest['source']['model_version']}"
+        )
         logger.info(f"Destination: {dest_workspace} ({dest_stage} stage)")
         logger.info(f"New Version ID: {new_version_id}")
 
@@ -766,10 +794,14 @@ def promote_cross_workspace(
         logger.info("\n📋 Audit Trail (stored in model metadata):")
         logger.info(f"  - Source workspace: {manifest['source']['workspace']}")
         logger.info(f"  - Source version: {manifest['source']['model_version']}")
-        logger.info(f"  - Source model: {manifest['source'].get('model_version_url', 'N/A')}")
+        logger.info(
+            f"  - Source model: {manifest['source'].get('model_version_url', 'N/A')}"
+        )
         logger.info(f"  - Metrics preserved: {list(manifest['metrics'].keys())}")
         logger.info("\n📋 Bidirectional link created:")
-        logger.info(f"  - Source model v{manifest['source']['model_version']} → promoted_to.{dest_workspace}")
+        logger.info(
+            f"  - Source model v{manifest['source']['model_version']} → promoted_to.{dest_workspace}"
+        )
         logger.info(f"  - Dest model → source.{manifest['source']['workspace']}")
 
 

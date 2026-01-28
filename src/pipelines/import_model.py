@@ -75,8 +75,10 @@ def _download_from_gcs(gcs_uri: str, local_path: str) -> None:
         bucket_name = parts[0]
         blob_path = parts[1] if len(parts) > 1 else ""
 
-        client = storage.Client(project=DEFAULT_GCP_PROJECT)
-        bucket = client.bucket(bucket_name)
+        # Use user_project for requester pays buckets
+        gcp_project = os.getenv("GCP_PROJECT_ID", DEFAULT_GCP_PROJECT)
+        client = storage.Client(project=gcp_project)
+        bucket = client.bucket(bucket_name, user_project=gcp_project)
         blob = bucket.blob(blob_path)
         blob.download_to_filename(local_path)
 
