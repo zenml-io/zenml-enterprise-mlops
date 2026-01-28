@@ -22,8 +22,11 @@ by the platform team to be included in all pipelines.
 
 from governance.steps.data_validation import validate_data_quality
 from governance.steps.model_validation import validate_model_performance
+from governance.steps.training_report import generate_html_report, generate_training_report
 
 __all__ = [
     "validate_data_quality",
     "validate_model_performance",
+    "generate_training_report",
+    "generate_html_report",
 ]

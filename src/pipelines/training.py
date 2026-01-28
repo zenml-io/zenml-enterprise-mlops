@@ -38,7 +38,11 @@ from governance.hooks import (
     pipeline_failure_hook,
     pipeline_success_hook,
 )
-from governance.steps import validate_data_quality, validate_model_performance
+from governance.steps import (
+    generate_training_report,
+    validate_data_quality,
+    validate_model_performance,
+)
 
 # Import ML steps
 from src.steps import (
@@ -304,6 +308,20 @@ def training_pipeline(
 
     # Log environment to model version (for tracking local vs staging runs)
     log_environment_metadata(environment=environment)
+
+    # Platform governance: Generate training report (conditional)
+    # This produces a markdown report for PR comments and audit trails
+    if enable_governance:
+        generate_training_report(
+            X_train=X_train,
+            X_test=X_test_final,
+            metrics=metrics,
+            min_accuracy=min_accuracy,
+            min_precision=0.7,
+            min_recall=0.7,
+            write_to_file=True,
+            output_path="training_report.md",
+        )
 
     return model, metrics
 

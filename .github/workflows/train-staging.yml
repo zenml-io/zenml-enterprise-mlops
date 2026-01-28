@@ -74,8 +74,31 @@ jobs:
           echo "Snapshot creation failed (OSS?), running pipeline directly..."
           python run.py --pipeline training --environment staging
 
-      - name: Comment on PR
-        if: success()
+      # Generate training report from pipeline results
+      - name: Generate training report
+        id: report
+        continue-on-error: true
+        run: |
+          python scripts/generate_training_report.py \
+            --pipeline training_pipeline \
+            --output training_report.md \
+            --min-accuracy 0.7 \
+            --min-precision 0.7 \
+            --min-recall 0.7
+
+      # Post detailed report as PR comment
+      - name: Comment training report on PR
+        if: always()
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          filePath: ./training_report.md
+          comment_tag: training_report
+          mode: recreate
+          create_if_not_exists: true
+
+      # Also post a summary comment if report generation failed
+      - name: Fallback comment on PR
+        if: failure() && steps.report.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
@@ -83,10 +106,10 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `✅ Training pipeline completed in **enterprise-dev-staging** workspace!
+              body: `⚠️ Training pipeline completed but report generation failed.
 
               **Next steps:**
-              1. Review model metrics in the [ZenML Dashboard](https://cloud.zenml.io)
-              2. Merge PR to trigger staging validation
-              3. Create a release to promote to production`
+              1. Review pipeline logs in the [ZenML Dashboard](https://cloud.zenml.io)
+              2. Check if all steps completed successfully
+              3. Merge PR to trigger staging validation`
             })

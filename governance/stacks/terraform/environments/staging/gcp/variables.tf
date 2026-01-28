@@ -63,3 +63,24 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+# =============================================================================
+# Shared Artifact Store (Recommended)
+# =============================================================================
+
+variable "shared_artifact_bucket" {
+  description = <<-EOT
+    Name of the shared artifact store bucket (from shared/gcp terraform).
+    When set, uses the shared bucket instead of creating a new one.
+    This enables seamless cross-workspace promotion with ZenML's fileio.
+
+    Benefits:
+    - ZenML's fileio works across workspaces (same artifact store bounds)
+    - Cross-workspace promotion uses standard APIs (no GCS client bypass)
+    - Single bucket to manage and backup
+
+    Leave empty to create a dedicated bucket for this stack.
+  EOT
+  type        = string
+  default     = ""
+}

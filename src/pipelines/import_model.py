@@ -30,13 +30,49 @@ import tempfile
 from typing import Annotated, Optional
 
 import joblib
+from google.cloud import storage
 from sklearn.base import ClassifierMixin, TransformerMixin
 from zenml import ArtifactConfig, Model, get_step_context, log_metadata, pipeline, step
 from zenml.enums import ArtifactType, ModelStages
-from zenml.io import fileio
 from zenml.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Default GCP project for model exchange bucket
+DEFAULT_GCP_PROJECT = os.getenv("GCP_PROJECT_ID", "zenml-core")
+DEFAULT_EXCHANGE_BUCKET = os.getenv("MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange")
+
+# Shared Artifact Store Mode
+# When True, both workspaces use the same artifact store bucket, so ZenML's fileio works.
+USE_SHARED_ARTIFACT_STORE = os.getenv("USE_SHARED_ARTIFACT_STORE", "false").lower() == "true"
+
+
+def _download_from_gcs(gcs_uri: str, local_path: str) -> None:
+    """Download a file from GCS.
+
+    Uses ZenML's fileio when using shared artifact store (recommended),
+    otherwise uses direct GCS client for separate bucket architecture.
+
+    Args:
+        gcs_uri: Full GCS URI (gs://bucket/path)
+        local_path: Path to save locally
+    """
+    if USE_SHARED_ARTIFACT_STORE:
+        # Shared artifact store: fileio works because bucket is within bounds
+        from zenml.io import fileio
+        fileio.copy(gcs_uri, local_path, overwrite=True)
+    else:
+        # Separate buckets: use direct GCS client to bypass bounds validation
+        if not gcs_uri.startswith("gs://"):
+            raise ValueError(f"Invalid GCS URI: {gcs_uri}")
+        parts = gcs_uri[5:].split("/", 1)
+        bucket_name = parts[0]
+        blob_path = parts[1] if len(parts) > 1 else ""
+
+        client = storage.Client(project=DEFAULT_GCP_PROJECT)
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+        blob.download_to_filename(local_path)
 
 
 @step
@@ -49,8 +85,8 @@ def download_and_register_model(
 ]:
     """Download and register imported model artifact from GCS.
 
-    Uses ZenML fileio for cloud-agnostic file operations that leverage
-    the artifact store's credentials via service connectors.
+    Uses direct GCS client to download from the model exchange bucket,
+    which is intentionally outside the artifact store bounds.
 
     Args:
         export_path: GCS path to the export directory
@@ -64,14 +100,14 @@ def download_and_register_model(
         f"Registering model from {source.get('workspace')} v{source.get('model_version')}"
     )
 
-    # Download model using ZenML fileio (uses artifact store credentials)
+    # Download model directly from GCS (bypasses artifact store bounds)
     model_uri = f"{export_path}/model.joblib"
 
     with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as tmp:
         tmp_path = tmp.name
 
     try:
-        fileio.copy(model_uri, tmp_path, overwrite=True)
+        _download_from_gcs(model_uri, tmp_path)
         model = joblib.load(tmp_path)
     finally:
         if os.path.exists(tmp_path):
@@ -91,8 +127,8 @@ def download_and_register_scaler(
 ]:
     """Download and register imported scaler artifact if present.
 
-    Uses ZenML fileio for cloud-agnostic file operations that leverage
-    the artifact store's credentials via service connectors.
+    Uses direct GCS client to download from the model exchange bucket,
+    which is intentionally outside the artifact store bounds.
 
     Args:
         export_path: GCS path to the export directory
@@ -105,14 +141,14 @@ def download_and_register_scaler(
         logger.info("No scaler to import")
         return None
 
-    # Download scaler using ZenML fileio (uses artifact store credentials)
+    # Download scaler directly from GCS (bypasses artifact store bounds)
     scaler_uri = f"{export_path}/scaler.joblib"
 
     with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as tmp:
         tmp_path = tmp.name
 
     try:
-        fileio.copy(scaler_uri, tmp_path, overwrite=True)
+        _download_from_gcs(scaler_uri, tmp_path)
         scaler = joblib.load(tmp_path)
     finally:
         if os.path.exists(tmp_path):

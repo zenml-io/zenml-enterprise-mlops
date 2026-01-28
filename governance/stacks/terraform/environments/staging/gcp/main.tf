@@ -75,8 +75,19 @@ resource "random_id" "suffix" {
 # GCP Infrastructure
 # =============================================================================
 
-# GCS Bucket for artifacts
+# =============================================================================
+# Artifact Store: Use shared bucket if provided, otherwise create dedicated one
+# =============================================================================
+
+# Option 1: Use shared artifact store (recommended for cross-workspace promotion)
+data "google_storage_bucket" "shared_artifact_store" {
+  count = var.shared_artifact_bucket != "" ? 1 : 0
+  name  = var.shared_artifact_bucket
+}
+
+# Option 2: Create dedicated bucket (legacy, for isolated stacks)
 resource "google_storage_bucket" "artifact_store" {
+  count    = var.shared_artifact_bucket == "" ? 1 : 0
   name     = "${var.project_id}-${var.stack_name}-${random_id.suffix.hex}"
   project  = var.project_id
   location = var.region
@@ -85,6 +96,11 @@ resource "google_storage_bucket" "artifact_store" {
   force_destroy               = true
 
   labels = local.gcp_labels
+}
+
+locals {
+  # Use shared bucket if provided, otherwise use dedicated bucket
+  artifact_bucket_name = var.shared_artifact_bucket != "" ? var.shared_artifact_bucket : google_storage_bucket.artifact_store[0].name
 }
 
 # Artifact Registry for container images
@@ -109,9 +125,9 @@ resource "google_service_account_key" "zenml_sa_key" {
   service_account_id = google_service_account.zenml_sa.name
 }
 
-# IAM: Storage Admin on the bucket
+# IAM: Storage Admin on the artifact bucket (shared or dedicated)
 resource "google_storage_bucket_iam_member" "zenml_sa_storage" {
-  bucket = google_storage_bucket.artifact_store.name
+  bucket = local.artifact_bucket_name
   role   = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.zenml_sa.email}"
 }
@@ -161,14 +177,14 @@ resource "zenml_service_connector" "gcp" {
 # ZenML Stack Components
 # =============================================================================
 
-# Artifact Store
+# Artifact Store (uses shared or dedicated bucket)
 resource "zenml_stack_component" "artifact_store" {
   name   = "${var.stack_name}-gcs"
   type   = "artifact_store"
   flavor = "gcp"
 
   configuration = {
-    path = "gs://${google_storage_bucket.artifact_store.name}"
+    path = "gs://${local.artifact_bucket_name}"
   }
 
   connector_id = zenml_service_connector.gcp.id
@@ -238,7 +254,12 @@ output "zenml_stack_name" {
 
 output "gcs_bucket" {
   description = "GCS bucket for artifacts"
-  value       = google_storage_bucket.artifact_store.name
+  value       = local.artifact_bucket_name
+}
+
+output "using_shared_bucket" {
+  description = "Whether using shared artifact store"
+  value       = var.shared_artifact_bucket != ""
 }
 
 output "service_account" {

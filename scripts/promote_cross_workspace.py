@@ -73,10 +73,10 @@ from typing import Optional
 import click
 import joblib
 from dotenv import load_dotenv
+from google.cloud import storage
 from zenml import log_metadata
 from zenml.client import Client
 from zenml.enums import ModelStages
-from zenml.io import fileio
 from zenml.logger import get_logger
 
 # Load environment variables from .env file
@@ -87,6 +87,11 @@ logger = get_logger(__name__)
 # Configuration (with env var overrides)
 DEFAULT_EXCHANGE_BUCKET = os.getenv("MODEL_EXCHANGE_BUCKET", "zenml-core-model-exchange")
 DEFAULT_GCP_PROJECT = os.getenv("GCP_PROJECT_ID", "zenml-core")
+
+# Shared Artifact Store Mode
+# When True, both workspaces use the same artifact store bucket, so ZenML's fileio works.
+# When False (legacy), uses direct GCS client to bypass artifact store bounds.
+USE_SHARED_ARTIFACT_STORE = os.getenv("USE_SHARED_ARTIFACT_STORE", "false").lower() == "true"
 
 WORKSPACE_CONFIG = {
     "enterprise-dev-staging": {
@@ -100,6 +105,54 @@ WORKSPACE_CONFIG = {
         "project": os.getenv("ZENML_PROJECT", "cancer-detection"),
     },
 }
+
+
+def _upload_to_gcs(local_path: str, gcs_uri: str, bucket_name: str) -> None:
+    """Upload a file to GCS.
+
+    Uses ZenML's fileio when using shared artifact store (recommended),
+    otherwise uses direct GCS client for separate bucket architecture.
+
+    Args:
+        local_path: Path to local file
+        gcs_uri: Full GCS URI (gs://bucket/path)
+        bucket_name: GCS bucket name
+    """
+    if USE_SHARED_ARTIFACT_STORE:
+        # Shared artifact store: fileio works because bucket is within bounds
+        from zenml.io import fileio
+        fileio.copy(local_path, gcs_uri, overwrite=True)
+    else:
+        # Separate buckets: use direct GCS client to bypass bounds validation
+        client = storage.Client(project=DEFAULT_GCP_PROJECT)
+        bucket = client.bucket(bucket_name)
+        blob_path = gcs_uri.replace(f"gs://{bucket_name}/", "")
+        blob = bucket.blob(blob_path)
+        blob.upload_from_filename(local_path)
+
+
+def _download_from_gcs(gcs_uri: str, local_path: str, bucket_name: str) -> None:
+    """Download a file from GCS.
+
+    Uses ZenML's fileio when using shared artifact store (recommended),
+    otherwise uses direct GCS client for separate bucket architecture.
+
+    Args:
+        gcs_uri: Full GCS URI (gs://bucket/path)
+        local_path: Path to save locally
+        bucket_name: GCS bucket name
+    """
+    if USE_SHARED_ARTIFACT_STORE:
+        # Shared artifact store: fileio works because bucket is within bounds
+        from zenml.io import fileio
+        fileio.copy(gcs_uri, local_path, overwrite=True)
+    else:
+        # Separate buckets: use direct GCS client to bypass bounds validation
+        client = storage.Client(project=DEFAULT_GCP_PROJECT)
+        bucket = client.bucket(bucket_name)
+        blob_path = gcs_uri.replace(f"gs://{bucket_name}/", "")
+        blob = bucket.blob(blob_path)
+        blob.download_to_filename(local_path)
 
 
 def _validate_manifest(manifest: dict) -> None:
@@ -305,11 +358,9 @@ def export_model(
         ],
     }
 
-    # Upload to GCS using ZenML fileio (uses artifact store credentials)
+    # Upload to GCS directly (bypasses artifact store bounds validation)
+    # The model exchange bucket is intentionally separate from the artifact store
     export_uri = f"gs://{exchange_bucket}/{export_path}"
-
-    # Ensure export directory exists
-    fileio.makedirs(export_uri)
 
     # Upload model artifact
     model_uri = f"{export_uri}/model.joblib"
@@ -317,7 +368,7 @@ def export_model(
         tmp_model_path = f.name
     try:
         joblib.dump(model, tmp_model_path)
-        fileio.copy(tmp_model_path, model_uri, overwrite=True)
+        _upload_to_gcs(tmp_model_path, model_uri, exchange_bucket)
         logger.info(f"Uploaded model to {model_uri}")
     finally:
         if os.path.exists(tmp_model_path):
@@ -330,7 +381,7 @@ def export_model(
             tmp_scaler_path = f.name
         try:
             joblib.dump(scaler, tmp_scaler_path)
-            fileio.copy(tmp_scaler_path, scaler_uri, overwrite=True)
+            _upload_to_gcs(tmp_scaler_path, scaler_uri, exchange_bucket)
             logger.info(f"Uploaded scaler to {scaler_uri}")
         finally:
             if os.path.exists(tmp_scaler_path):
@@ -343,7 +394,7 @@ def export_model(
         json.dump(manifest, f, indent=2, default=str)
         f.flush()
     try:
-        fileio.copy(tmp_manifest_path, manifest_uri, overwrite=True)
+        _upload_to_gcs(tmp_manifest_path, manifest_uri, exchange_bucket)
         logger.info(f"Uploaded manifest to {manifest_uri}")
     finally:
         if os.path.exists(tmp_manifest_path):
@@ -426,7 +477,7 @@ def import_model(
     """
     logger.info(f"Importing model into {dest_workspace}")
 
-    # Load manifest using ZenML fileio (uses artifact store credentials)
+    # Load manifest directly from GCS (bypasses artifact store bounds)
     # Normalize manifest path
     if not manifest_path.startswith("gs://"):
         manifest_path = f"gs://{exchange_bucket}/{manifest_path}"
@@ -437,7 +488,7 @@ def import_model(
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
         tmp_path = tmp.name
     try:
-        fileio.copy(manifest_path, tmp_path, overwrite=True)
+        _download_from_gcs(manifest_path, tmp_path, exchange_bucket)
         with open(tmp_path, "r") as f:
             manifest = json.load(f)
     finally:
@@ -619,7 +670,7 @@ def promote_cross_workspace(
             logger.info(f"    --import-from {manifest['export_path']}")
             return
     else:
-        # Load manifest for import-only workflow using ZenML fileio
+        # Load manifest for import-only workflow directly from GCS
         logger.info(f"Import from: {import_from}")
 
         # Normalize manifest path
@@ -633,7 +684,7 @@ def promote_cross_workspace(
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
             tmp_path = tmp.name
         try:
-            fileio.copy(manifest_path, tmp_path, overwrite=True)
+            _download_from_gcs(manifest_path, tmp_path, bucket)
             with open(tmp_path, "r") as f:
                 manifest = json.load(f)
         finally:
