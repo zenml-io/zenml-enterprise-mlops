@@ -119,7 +119,7 @@ def generate_training_report(
     min_recall: float = 0.7,
     min_rows: int = 100,
     max_missing_fraction: float = 0.1,
-    write_to_file: bool = True,
+    write_to_file: bool = False,
     output_path: str = "training_report.md",
 ) -> Annotated[HTMLString, "training_report"]:
     """Generate a comprehensive training report for PR comments and audit trails.

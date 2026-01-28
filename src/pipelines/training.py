@@ -319,8 +319,6 @@ def training_pipeline(
             min_accuracy=min_accuracy,
             min_precision=0.7,
             min_recall=0.7,
-            write_to_file=True,
-            output_path="training_report.md",
         )
 
     return model, metrics
