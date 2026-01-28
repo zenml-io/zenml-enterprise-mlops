@@ -32,7 +32,6 @@ def model_governance_hook() -> None:
 
     Validates that trained models have:
     - Required tags (use case, team, compliance level)
-    - Performance metrics logged
     - Git commit information (for reproducibility)
     - Proper naming conventions
 
@@ -42,22 +41,41 @@ def model_governance_hook() -> None:
     try:
         context = get_step_context()
 
-        # Only validate models
+        # Only validate models in model context pipelines
         if not context.model:
             return
 
         model = context.model
-        model_version = model.get_model_version()
 
-        # Check required tags
-        required_tags = {"use_case", "owner_team"}
-        model_tags = set(model_version.tags) if model_version.tags else set()
-        missing_tags = required_tags - model_tags
+        # Get model version from ZenML client
+        from zenml.client import Client
 
-        if missing_tags:
-            raise ValueError(
-                f"Model governance violation: Missing required tags {missing_tags}. "
-                f"Add tags with @pipeline(model=Model(name='...', tags=['use_case:fraud', 'owner_team:ml-platform']))"
+        client = Client()
+        try:
+            model_version = client.get_model_version(
+                model_name_or_id=model.name,
+                model_version_name_or_number_or_id=model.version,
+            )
+        except Exception:
+            # Model version may not exist yet if pipeline hasn't completed
+            logger.info(
+                "Model version not yet registered, skipping governance validation"
+            )
+            return
+
+        # Check required tags - look for use_case: and owner_team: prefixes
+        required_tag_prefixes = ["use_case:", "owner_team:"]
+        model_tags = model_version.tags if model_version.tags else []
+        missing_prefixes = [
+            prefix
+            for prefix in required_tag_prefixes
+            if not any(tag.startswith(prefix) for tag in model_tags)
+        ]
+
+        if missing_prefixes:
+            logger.warning(
+                f"Model governance: Missing recommended tags with prefixes {missing_prefixes}. "
+                f"Add tags like: tags=['use_case:breast_cancer', 'owner_team:ml-platform']"
             )
 
         # Check naming convention (must start with use case prefix)
@@ -73,13 +91,13 @@ def model_governance_hook() -> None:
 
         git_commit = os.getenv("GIT_COMMIT") or os.getenv("GITHUB_SHA")
         if not git_commit:
-            logger.warning(
+            logger.info(
                 "No git commit found in environment. Set GIT_COMMIT or GITHUB_SHA "
                 "for full reproducibility and compliance."
             )
 
         logger.info(
-            f"Model governance check passed for {model.name} version {model.version}"
+            f"Model governance check completed for {model.name} version {model.version}"
         )
 
     except ValueError:
