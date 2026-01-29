@@ -15,26 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Main script to run ZenML pipelines locally.
-
-This script is for local development. For CI/CD deployments, use
-scripts/build_snapshot.py which creates immutable pipeline snapshots.
+"""Run ZenML pipelines locally.
 
 Usage:
-    # Run with environment config
-    python run.py --pipeline training --environment local
-    python run.py --pipeline training --environment staging
-
-    # Run with direct parameters (overrides config)
-    python run.py --pipeline training --n-estimators 200
-
-    # Other pipelines
-    python run.py --pipeline batch_inference
-    python run.py --pipeline champion_challenger
-
-For real-time inference (Pipeline Deployments):
-    zenml pipeline deploy src.pipelines.realtime_inference.inference_service \\
-        --name readmission-api
+    python run.py                                        # training, local mode
+    python run.py --pipeline batch_inference             # other pipelines
+    python run.py --environment staging                  # with governance hooks
+    python run.py --environment staging --stack my-stack # explicit stack
 """
 
 from pathlib import Path
@@ -45,36 +32,24 @@ from zenml.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Config files per environment (docker settings, parameters, etc.)
+CONFIG_DIR = Path("configs")
 
-def set_stack_for_environment(
-    environment: str, stack_override: str | None = None
-) -> None:
-    """Set the appropriate stack based on environment.
+# Default stacks per environment
+STACK_DEFAULTS = {
+    "local": "dev-stack",
+    "staging": "staging-stack",
+}
 
-    Args:
-        environment: Environment name (local, staging, production)
-        stack_override: Optional explicit stack name (overrides environment default)
-    """
+
+def activate_stack(stack_name: str) -> None:
+    """Activate a stack, with fallback to current stack if not found."""
     client = Client()
-
-    # Use override if provided, otherwise map from environment
-    if stack_override:
-        stack_name = stack_override
-    else:
-        stack_map = {
-            "local": "dev-stack",  # GCS artifact store
-            "staging": "staging-stack",
-        }
-        stack_name = stack_map.get(environment)
-
-    if stack_name:
-        try:
-            client.activate_stack(stack_name)
-            logger.info(f"Activated stack: {stack_name}")
-        except KeyError:
-            logger.warning(
-                f"Stack '{stack_name}' not found, using current stack: {client.active_stack_model.name}"
-            )
+    try:
+        client.activate_stack(stack_name)
+        logger.info(f"Using stack: {stack_name}")
+    except KeyError:
+        logger.warning(f"Stack '{stack_name}' not found, using: {client.active_stack_model.name}")
 
 
 @click.command()
@@ -82,106 +57,53 @@ def set_stack_for_environment(
     "--pipeline",
     type=click.Choice(["training", "batch_inference", "champion_challenger"]),
     default="training",
-    help="Which pipeline to run",
 )
 @click.option(
     "--environment",
-    type=click.Choice(["local", "staging", "production"]),
+    type=click.Choice(["local", "staging"]),
     default="local",
-    help="Environment config to use (loads configs/{environment}.yaml)",
-)
-@click.option(
-    "--test-size",
-    type=float,
-    default=None,
-    help="Fraction of data for testing (overrides config)",
-)
-@click.option(
-    "--n-estimators",
-    type=int,
-    default=None,
-    help="Number of trees in Random Forest (overrides config)",
-)
-@click.option(
-    "--max-depth",
-    type=int,
-    default=None,
-    help="Maximum depth of trees (overrides config)",
-)
-@click.option(
-    "--min-accuracy",
-    type=float,
-    default=None,
-    help="Minimum accuracy required for validation (overrides config)",
+    help="local = fast iteration, staging = with governance hooks",
 )
 @click.option(
     "--stack",
     type=str,
     default=None,
-    help="Stack to use (overrides environment default: local→dev-stack, staging→staging-stack)",
+    help="Stack to use (default: dev-stack for local, staging-stack for staging)",
 )
-def main(
-    pipeline: str,
-    environment: str,
-    test_size: float | None,
-    n_estimators: int | None,
-    max_depth: int | None,
-    min_accuracy: float | None,
-    stack: str | None,
-):
-    """Run ZenML pipelines for patient readmission prediction.
+def main(pipeline: str, environment: str, stack: str | None):
+    """Run ZenML pipelines for patient readmission prediction."""
+    # Set stack (explicit override or environment default)
+    stack_name = stack or STACK_DEFAULTS.get(environment)
+    if stack_name:
+        activate_stack(stack_name)
 
-    Uses environment-specific config from configs/{environment}.yaml.
-    Command-line arguments override config file values.
-    """
-    config_path = Path(f"configs/{environment}.yaml")
-    logger.info(f"Running {pipeline} pipeline with {environment} config...")
+    logger.info(f"Running {pipeline} pipeline ({environment} mode)")
 
     if pipeline == "training":
         from src.pipelines.training import training_pipeline
 
-        # Set stack based on environment (or use explicit override)
-        set_stack_for_environment(environment, stack_override=stack)
-
-        # Build kwargs from CLI args (only include if explicitly set)
-        kwargs = {"environment": environment}  # Always pass environment for tracking
-        if test_size is not None:
-            kwargs["test_size"] = test_size
-        if n_estimators is not None:
-            kwargs["n_estimators"] = n_estimators
-        if max_depth is not None:
-            kwargs["max_depth"] = max_depth
-        if min_accuracy is not None:
-            kwargs["min_accuracy"] = min_accuracy
-
-        # Apply governance hooks based on environment
-        if environment == "local":
-            # Local: fast iteration without governance
-            logger.info("Using local mode (no governance hooks)")
-            kwargs["enable_governance"] = False
-            pipeline_to_run = training_pipeline
+        # Load config (docker settings, parameters, tags, etc.)
+        config_path = CONFIG_DIR / f"{environment}.yaml"
+        if config_path.exists():
+            pipeline_to_run = training_pipeline.with_options(config_path=str(config_path))
+            logger.info(f"Loaded config: {config_path}")
         else:
-            # Staging/Production: full governance enforcement
-            logger.info(f"Using {environment} mode (with governance hooks)")
-            kwargs["enable_governance"] = True
+            pipeline_to_run = training_pipeline
 
-            # Import and attach hooks for non-local environments
+        if environment == "local":
+            # Local: fast iteration, no governance steps or hooks
+            pipeline_to_run(environment=environment, enable_governance=False)
+        else:
+            # Staging: add governance hooks
             from governance.hooks import (
                 pipeline_failure_hook,
                 pipeline_governance_success_hook,
             )
 
-            # Apply hooks dynamically
-            pipeline_to_run = training_pipeline.with_options(
+            pipeline_to_run.with_options(
                 on_success=pipeline_governance_success_hook,
                 on_failure=pipeline_failure_hook,
-            )
-
-        # Run with config file if exists, CLI args override config
-        if config_path.exists() and environment != "local":
-            pipeline_to_run = pipeline_to_run.with_options(config_path=str(config_path))
-
-        pipeline_to_run(**kwargs)
+            )(environment=environment, enable_governance=True)
 
     elif pipeline == "batch_inference":
         from src.pipelines.batch_inference import batch_inference_pipeline

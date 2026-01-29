@@ -25,3 +25,17 @@ parameters:
 tags:
   - "local"
   - "development"
+
+# Docker and resource settings
+# Using default ZenML images (have ZenML pre-installed)
+settings:
+  docker:
+    # No parent_image = use default ZenML image (has ZenML pre-installed)
+    python_package_installer: uv
+    required_integrations:
+      - sklearn
+  orchestrator:
+    synchronous: false  # Don't block - run in background on Vertex AI
+  resources:
+    cpu_count: 2
+    memory: 4GB

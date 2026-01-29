@@ -1,13 +1,13 @@
 # ZenML Stack Terraform Configurations
 
-This directory contains Terraform configurations for deploying ZenML stacks to GCP.
+This directory contains Terraform configurations for deploying enterprise ZenML stacks.
 
 ## Quick Start
 
 ```bash
 # 1. Copy and fill in your credentials
 cp .env.example .env
-# Edit .env with your ZenML API keys and GCP project
+# Edit .env with your ZenML API keys and cloud credentials
 
 # 2. Deploy all stacks (shared → dev → staging → production)
 cd governance/stacks/terraform
@@ -17,21 +17,174 @@ cd governance/stacks/terraform
 ./deploy.sh status
 ```
 
-## Architecture
+## Stack Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        ENTERPRISE MLOPS STACKS                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────┐    ┌──────────────────────────────┐       │
+│  │   AWS STAGING STACK          │    │   GCP PRODUCTION STACK        │       │
+│  │   (enterprise-dev-staging)   │    │   (enterprise-production)     │       │
+│  │                              │    │                               │       │
+│  │  Orchestrator: Kubernetes    │    │  Orchestrator: Cloud Composer │       │
+│  │               (EKS)          │    │               (Airflow) or    │       │
+│  │                              │    │               Vertex AI       │       │
+│  │  Artifact Store: S3          │    │                               │       │
+│  │  Container Registry: ECR     │    │  Artifact Store: GCS          │       │
+│  │                              │    │  Container Registry: GAR      │       │
+│  └──────────────────────────────┘    └──────────────────────────────┘       │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────┐       │
+│  │              OPTIONAL: SHARED ARTIFACT STORE                      │       │
+│  │   gs://zenml-enterprise-shared-artifacts-xxxxx                   │       │
+│  │   (Enables cross-workspace model promotion)                       │       │
+│  └──────────────────────────────────────────────────────────────────┘       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Directory Structure
 
 ```
 governance/stacks/terraform/
-├── deploy.sh                 # Easy deployment script
+├── deploy.sh                     # Easy deployment script
+├── README.md                     # This file
+├── .env.example                  # Environment template
+├── .gitignore                    # Ignore state and credentials
+│
 ├── environments/
-│   ├── development/gcp/      # dev-stack (local orchestrator) → enterprise-dev-staging
-│   ├── staging/gcp/          # staging-stack (Vertex AI) → enterprise-dev-staging
-│   └── production/gcp/       # gcp-stack (Vertex AI) → enterprise-production
-└── shared/gcp/               # Shared artifact store bucket
+│   ├── development/gcp/          # dev-stack (local orchestrator)
+│   ├── staging/
+│   │   ├── aws/                  # aws-staging (EKS orchestrator)
+│   │   └── gcp/                  # staging-stack (Vertex AI)
+│   └── production/
+│       ├── aws/                  # (placeholder)
+│       └── gcp/                  # gcp-stack (Cloud Composer or Vertex AI)
+│
+└── shared/gcp/                   # Shared artifact store bucket
 ```
 
-### Shared Artifact Store (Recommended)
+## Stack Details
 
-Both workspaces share a single artifact store bucket:
+### AWS Staging Stack (Kubernetes/EKS)
+
+**Location:** `environments/staging/aws/`
+
+**Components:**
+- **Orchestrator:** Kubernetes (EKS) - existing cluster
+- **Artifact Store:** S3 bucket
+- **Container Registry:** ECR
+- **Authentication:** IAM Role with assume role
+
+**Prerequisites:**
+- Existing EKS cluster
+- Existing S3 bucket (or create new)
+- IAM role with appropriate permissions
+
+**Deployment:**
+```bash
+cd environments/staging/aws
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+
+terraform init
+terraform plan
+terraform apply
+```
+
+**Manual equivalent (what Terraform creates):**
+```bash
+zenml service-connector register aws_connector \
+  --type=aws \
+  --auth-method=iam-role \
+  --region=eu-central-1 \
+  --role_arn=arn:aws:iam::ACCOUNT:role/zenml-connectors \
+  --aws_access_key_id=YOUR_KEY \
+  --aws_secret_access_key=YOUR_SECRET
+
+zenml orchestrator register kubernetes \
+  --flavor=kubernetes \
+  --synchronous=False \
+  --connector=aws_connector \
+  --resource-id=your-eks-cluster
+
+zenml artifact-store register s3 \
+  --flavor=s3 \
+  --path=s3://your-bucket \
+  --connector=aws_connector
+
+zenml container-registry register ecr \
+  --flavor=aws \
+  --uri=ACCOUNT.dkr.ecr.REGION.amazonaws.com \
+  --connector=aws_connector
+
+zenml stack register aws-staging -o kubernetes -a s3 -c ecr
+```
+
+---
+
+### GCP Production Stack (Cloud Composer or Vertex AI)
+
+**Location:** `environments/production/gcp/`
+
+**Orchestrator Options:**
+
+#### Option 1: Vertex AI (Default)
+- Serverless, no infrastructure to manage
+- Best for simple pipeline execution
+- Pay-per-use pricing
+
+#### Option 2: Cloud Composer (Airflow)
+- Full Airflow capabilities (complex DAGs, sensors, hooks)
+- Best for teams already using Airflow
+- Managed GKE cluster underneath
+
+**Components:**
+- **Orchestrator:** Vertex AI OR Cloud Composer (Airflow)
+- **Artifact Store:** GCS bucket
+- **Container Registry:** Google Artifact Registry
+- **Authentication:** Service Account
+
+**Deployment with Vertex AI:**
+```bash
+cd environments/production/gcp
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars: orchestrator_type = "vertex"
+
+terraform init
+terraform plan
+terraform apply
+```
+
+**Deployment with Cloud Composer (Airflow):**
+```bash
+cd environments/production/gcp
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars:
+#   orchestrator_type = "airflow"
+#   create_composer_environment = true
+
+terraform init
+terraform plan
+terraform apply
+
+# Note: Cloud Composer creation takes ~20-30 minutes
+```
+
+**Using Existing Cloud Composer:**
+```hcl
+orchestrator_type           = "airflow"
+create_composer_environment = false
+existing_composer_name      = "my-existing-composer"
+```
+
+---
+
+## Shared Artifact Store (Recommended)
+
+Both workspaces can share a single artifact store bucket for seamless cross-workspace promotion:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -44,49 +197,80 @@ Both workspaces share a single artifact store bucket:
 └─────────────────────────────────────────────────────────────┘
          ▲                              ▲
          │                              │
-    staging-stack                  gcp-stack
+    aws-staging                    gcp-stack
     (dev-staging)                 (production)
 ```
 
 **Benefits:**
-- ZenML's `fileio` works seamlessly (same artifact store bounds)
+- ZenML's `fileio` works seamlessly across workspaces
 - Cross-workspace promotion uses standard ZenML APIs
-- Single bucket to manage, backup, and configure lifecycle policies
+- Single bucket to manage and configure lifecycle policies
+
+**Deployment:**
+```bash
+cd shared/gcp
+terraform init && terraform apply
+# Note the bucket name from output
+
+# Then reference in other stacks:
+# shared_artifact_bucket = "zenml-enterprise-shared-artifacts-xxxxx"
+```
+
+---
 
 ## Prerequisites
 
-1. **GCP CLI** authenticated:
-   ```bash
-   gcloud auth application-default login
-   gcloud config set project zenml-core
-   ```
+### GCP
+```bash
+# Authenticate
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT
 
-2. **Terraform** installed (>= 1.0):
-   ```bash
-   terraform --version
-   ```
+# Enable required APIs
+gcloud services enable \
+  storage.googleapis.com \
+  artifactregistry.googleapis.com \
+  aiplatform.googleapis.com \
+  composer.googleapis.com \
+  iam.googleapis.com
+```
 
-3. **Environment file** configured:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your credentials
-   ```
+### AWS
+```bash
+# Configure credentials
+aws configure
+
+# Ensure EKS cluster exists
+aws eks list-clusters
+```
+
+### Terraform
+```bash
+# Install Terraform >= 1.0
+terraform --version
+```
+
+---
 
 ## Environment Configuration
 
-The `.env` file (copy from `.env.example`) contains:
+Create `.env` from `.env.example`:
 
 ```bash
 # GCP
 GCP_PROJECT_ID=zenml-core
 GCP_REGION=us-central1
 
+# AWS
+AWS_REGION=eu-central-1
+AWS_EKS_CLUSTER=eu-staging-cloud-infra-cluster
+AWS_S3_BUCKET=zenml-dev
+
 # ZenML Project (same in both workspaces)
 ZENML_PROJECT=cancer-detection
 
 # Stack names
-ZENML_DEV_STACK=dev-stack
-ZENML_STAGING_STACK=staging-stack
+ZENML_STAGING_STACK=aws-staging
 ZENML_PRODUCTION_STACK=gcp-stack
 
 # Dev-Staging workspace credentials
@@ -101,124 +285,97 @@ PRODUCTION_ZENML_API_KEY=...
 # SHARED_ARTIFACT_BUCKET=zenml-enterprise-shared-artifacts-xxxxx
 ```
 
-## Deployment
+---
 
-### Option 1: Deploy All (Recommended)
+## Deployment Commands
 
+### Deploy All
 ```bash
-cd governance/stacks/terraform
 ./deploy.sh deploy-all
 ```
 
-This deploys in order: shared → development → staging → production
-
-### Option 2: Deploy Individual Stacks
-
+### Deploy Individual Stack
 ```bash
-# Switch workspace first
+# AWS Staging (requires dev-staging workspace)
 source scripts/use-workspace.sh dev-staging
+./deploy.sh deploy staging-aws
 
-# Deploy specific stack
-./deploy.sh deploy staging
-```
-
-### Option 3: Manual Deployment
-
-```bash
-# 1. Deploy shared bucket (no ZenML credentials needed)
-cd governance/stacks/terraform/shared/gcp
-terraform init && terraform apply
-# Note the bucket name from output
-
-# 2. Deploy dev-staging stacks
-source scripts/use-workspace.sh dev-staging
-
-cd ../environments/development/gcp
-terraform init && terraform apply
-
-cd ../staging/gcp
-terraform init && terraform apply -var="shared_artifact_bucket=<bucket-name>"
-
-# 3. Deploy production stack
+# GCP Production (requires production workspace)
 source scripts/use-workspace.sh production
-
-cd ../production/gcp
-terraform init && terraform apply -var="shared_artifact_bucket=<bucket-name>"
+./deploy.sh deploy production-gcp
 ```
 
-## Workspace Switching
-
-The `use-workspace.sh` script loads credentials from `.env`:
-
+### Check Status
 ```bash
-# Switch to dev-staging workspace
-source scripts/use-workspace.sh dev-staging
-
-# Switch to production workspace
-source scripts/use-workspace.sh production
+./deploy.sh status
 ```
 
-This exports:
-- `ZENML_SERVER_URL` and `ZENML_API_KEY` for ZenML CLI
-- `TF_VAR_*` variables for Terraform
-- `ZENML_PROJECT` and stack names
+### Destroy
+```bash
+# Destroy specific stack
+./deploy.sh destroy staging-aws
 
-## Stack Details
+# Destroy all (reverse order)
+./deploy.sh destroy-all
+```
 
-| Stack | Workspace | Orchestrator | Purpose |
-|-------|-----------|--------------|---------|
-| dev-stack | enterprise-dev-staging | local | Fast local iteration |
-| staging-stack | enterprise-dev-staging | Vertex AI | Production-like testing |
-| gcp-stack | enterprise-production | Vertex AI | Production inference |
+---
 
 ## Verifying Deployment
 
 ```bash
-# Check deployment status
-./deploy.sh status
+# Switch to appropriate workspace
+source scripts/use-workspace.sh dev-staging  # or production
 
-# Verify in ZenML
-source scripts/use-workspace.sh dev-staging
-zenml project set $ZENML_PROJECT
+# List stacks
 zenml stack list
-zenml stack describe $ZENML_STAGING_STACK
+
+# Describe specific stack
+zenml stack describe aws-staging
+
+# Set active stack
+zenml stack set aws-staging
+
+# Run a test pipeline
+python run.py --pipeline training --environment staging
 ```
 
-## Cleanup
-
-```bash
-# Destroy all stacks (reverse order)
-./deploy.sh destroy-all
-
-# Or destroy specific stack
-./deploy.sh destroy staging
-```
+---
 
 ## Troubleshooting
 
 ### "ZENML_SERVER_URL not set"
-
 ```bash
 source scripts/use-workspace.sh dev-staging
 ```
 
-### "GCP not authenticated"
+### "Cloud Composer creation failed"
+- Check GCP quotas for GKE nodes
+- Ensure Composer API is enabled
+- Wait up to 30 minutes for creation
 
+### "EKS cluster not found"
 ```bash
-gcloud auth application-default login
+# Verify cluster exists
+aws eks describe-cluster --name your-cluster-name --region eu-central-1
 ```
 
-### "Bucket contains objects"
-
-The destroy script handles this automatically. If manual:
-```bash
-gsutil -m rm -r "gs://bucket-name/*"
-terraform destroy
-```
+### "IAM Role cannot be assumed"
+- Check trust policy on the IAM role
+- Verify credentials have `sts:AssumeRole` permission
 
 ### "Module version errors"
-
 ```bash
 rm -rf .terraform .terraform.lock.hcl
 terraform init
 ```
+
+---
+
+## Security Best Practices
+
+1. **Never commit credentials** - Use environment variables or secret managers
+2. **Use remote state** - Enable GCS/S3 backend for state files
+3. **Rotate service account keys** - Set up key rotation policies
+4. **Principle of least privilege** - IAM roles should have minimal required permissions
+5. **Enable audit logging** - GCP Cloud Audit Logs, AWS CloudTrail

@@ -1,28 +1,77 @@
-# Example Terraform Variables for AWS Staging
+# AWS Staging Stack Configuration
 # Copy this file to terraform.tfvars and fill in your values
 # DO NOT commit terraform.tfvars - it's in .gitignore
+#
+# Example: Kubernetes (EKS) Orchestrator with S3 + ECR
 
-# AWS region
-region = "us-east-1"
+# =============================================================================
+# AWS Region
+# =============================================================================
+region = "eu-central-1"
 
-# ZenML stack name (will be registered with your ZenML server)
+# =============================================================================
+# Stack Name
+# =============================================================================
 stack_name = "aws-staging"
 
-# Deployment name (used in AWS resource naming)
-deployment_name = "zenml-staging"
+# =============================================================================
+# ZenML Server (Dev-Staging Workspace)
+# =============================================================================
+zenml_server_url = "https://your-zenml-server.zenml.io"
+zenml_api_key    = "your-api-key"  # Or use TF_VAR_zenml_api_key env var
 
-# Orchestrator type: "sagemaker", "skypilot", or "local"
-# Note: SageMaker requires additional AWS permissions
-orchestrator = "local"
+# =============================================================================
+# AWS Authentication Options
+# =============================================================================
 
-# Optional: Additional tags
+# Option 1: IAM Role (Recommended for production)
+# Allows ZenML to assume a role with specific permissions
+aws_auth_method       = "iam-role"
+aws_access_key_id     = "YOUR_ACCESS_KEY_ID"
+aws_secret_access_key = "YOUR_SECRET_ACCESS_KEY"
+
+# Use existing IAM role
+create_iam_role       = false
+existing_iam_role_arn = "arn:aws:iam::339712793861:role/zenml-connectors"
+
+# OR create a new IAM role (uncomment below)
+# create_iam_role              = true
+# zenml_assume_role_principals = [
+#   "arn:aws:iam::339712793861:root",  # Allow from same account
+#   "arn:aws:iam::339712793861:user/zenml-service"  # Specific user
+# ]
+
+# Option 2: Direct credentials (simpler, less secure)
+# aws_auth_method       = "secret-key"
+# aws_access_key_id     = "your-access-key"
+# aws_secret_access_key = "your-secret-key"
+
+# =============================================================================
+# EKS Cluster (Orchestrator)
+# =============================================================================
+# Your existing EKS cluster for pipeline orchestration
+eks_cluster_name = "eu-staging-cloud-infra-cluster"
+
+# =============================================================================
+# S3 Bucket (Artifact Store)
+# =============================================================================
+# Use existing bucket
+create_s3_bucket = false
+s3_bucket_name   = "zenml-dev"
+
+# OR create a new bucket
+# create_s3_bucket = true
+# s3_bucket_name   = "zenml-staging-artifacts"
+
+# =============================================================================
+# Resource Labeling
+# =============================================================================
+team_name   = "ml-platform"
+cost_center = "ml-ops"
+
 tags = {
+  Project     = "enterprise-mlops"
+  Environment = "staging"
   Team        = "ml-platform"
   CostCenter  = "engineering"
-  Owner       = "mlops-team"
-  Environment = "staging"
 }
-
-# IMPORTANT: Before running terraform apply, set these environment variables:
-# export ZENML_SERVER_URL="https://your-zenml-server.com"
-# export ZENML_API_KEY="<your-service-account-api-key>"

@@ -1,0 +1,66 @@
+# GCP Production Stack with Cloud Composer (Airflow)
+# Copy to terraform.tfvars and configure
+#
+# This is a SEPARATE stack from gcp-stack (Vertex AI)
+# Stack name: gcp-airflow-stack
+
+# =============================================================================
+# GCP Configuration
+# =============================================================================
+
+project_id = "zenml-core"
+region     = "us-central1"
+
+# =============================================================================
+# Stack Name (different from gcp-stack!)
+# =============================================================================
+
+stack_name = "gcp-airflow-stack"
+
+# =============================================================================
+# Cloud Composer Configuration
+# =============================================================================
+
+# Create new Composer environment
+create_composer_environment = true
+composer_image_version      = "composer-3-airflow-2.10.3"
+composer_environment_size   = "ENVIRONMENT_SIZE_SMALL"
+
+# OR use existing
+# create_composer_environment = false
+# existing_composer_name      = "my-existing-composer"
+
+# Airflow operator for ZenML steps
+airflow_operator = "kubernetes_pod"
+
+# =============================================================================
+# Resource Sizing (optional, defaults shown)
+# =============================================================================
+
+# composer_scheduler_cpu        = 2
+# composer_scheduler_memory_gb  = 4
+# composer_worker_min_count     = 1
+# composer_worker_max_count     = 3
+
+# =============================================================================
+# Cost Tracking
+# =============================================================================
+
+team_name   = "platform-team"
+cost_center = "ml-platform"
+
+labels = {
+  owner   = "platform-team"
+  purpose = "ml-production-airflow"
+}
+
+# =============================================================================
+# Shared Artifact Store (recommended)
+# =============================================================================
+
+# shared_artifact_bucket = "zenml-enterprise-shared-artifacts-xxxxxxxx"
+
+# =============================================================================
+# ZenML Connection - set via environment
+# =============================================================================
+# source scripts/use-workspace.sh production
