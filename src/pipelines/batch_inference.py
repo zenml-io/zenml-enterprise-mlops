@@ -66,13 +66,15 @@ def scale_and_predict(
     )
 
     # Generate predictions
+    # After label inversion in data_loader: 1=high-risk, 0=low-risk
+    # So predict_proba()[:, 1] = high-risk probability
     predictions = model.predict(X_scaled)
     probabilities = model.predict_proba(X_scaled)[:, 1]
 
     results = pd.DataFrame(
         {
-            "prediction": predictions,
-            "probability": probabilities,
+            "high_risk": predictions,
+            "high_risk_probability": probabilities,
         },
         index=X.index,
     )

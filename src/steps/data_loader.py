@@ -52,10 +52,13 @@ def load_data(
     logger.info("Loading breast cancer dataset as proxy for patient risk data")
 
     # Load dataset - this is a proper binary classification dataset
+    # sklearn breast cancer: 0=malignant, 1=benign
+    # We invert so: 1=malignant/high-risk, 0=benign/low-risk
+    # This makes predict_proba()[:, 1] = "high-risk probability"
     data = load_breast_cancer(as_frame=True)
     X = data.data
-    y = data.target
-    y = pd.Series(y, name="risk_prediction")
+    y = 1 - data.target  # Invert: 1=high-risk (malignant), 0=low-risk (benign)
+    y = pd.Series(y, name="high_risk")
 
     logger.info(f"Dataset loaded: {X.shape[0]} patients, {X.shape[1]} features")
     logger.info(f"Target distribution: {y.value_counts().to_dict()}")

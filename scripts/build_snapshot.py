@@ -57,7 +57,7 @@ from zenml.logger import get_logger
 
 logger = get_logger(__name__)
 
-SNAPSHOT_PREFIX = "readmission_model"
+SNAPSHOT_PREFIX = "breast_cancer_classifier"
 
 
 def get_snapshot_name(

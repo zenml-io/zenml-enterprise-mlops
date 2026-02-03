@@ -12,8 +12,13 @@ echo "🚀 Setting up ZenML Enterprise MLOps Template..."
 # Check if virtual environment is active
 if [ -z "$VIRTUAL_ENV" ]; then
     echo "⚠️  Warning: No virtual environment detected."
-    echo "   Please activate your virtual environment first:"
-    echo "   source /Users/htahir1/Envs/zenml_enterprise_mlops/bin/activate"
+    echo "   Please create and activate a virtual environment first:"
+    echo ""
+    echo "   # Option 1: Using venv"
+    echo "   python -m venv .venv && source .venv/bin/activate"
+    echo ""
+    echo "   # Option 2: Using uv"
+    echo "   uv venv && source .venv/bin/activate"
     exit 1
 fi
 

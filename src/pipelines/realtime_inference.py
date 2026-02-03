@@ -190,16 +190,17 @@ def predict(
     if scaler is not None:
         features = scaler.transform(features)
     prediction = int(model.predict(features)[0])
-    probability = float(model.predict_proba(features)[0, 1])
+    # After label inversion in data_loader: 1=high-risk, 0=low-risk
+    # So predict_proba()[:, 1] = high-risk probability
+    high_risk_prob = float(model.predict_proba(features)[0, 1])
 
-    # Determine risk level
-    # Note: probability is P(benign), so low probability = high risk
-    if probability > 0.7:
-        risk_level = "LOW"
-    elif probability > 0.4:
+    # Determine risk level based on high-risk probability
+    if high_risk_prob >= 0.7:
+        risk_level = "HIGH"
+    elif high_risk_prob >= 0.3:
         risk_level = "MEDIUM"
     else:
-        risk_level = "HIGH"
+        risk_level = "LOW"
 
     # Simple feature importance explanation
     raw_data = processed_features["raw"]
@@ -225,7 +226,7 @@ def predict(
     return PredictionResult(
         patient_id=str(uuid.uuid4())[:8],
         prediction=prediction,
-        probability=round(probability, 4),
+        probability=round(high_risk_prob, 4),
         risk_level=risk_level,
         model_version=version,
         explanation=explanation,

@@ -58,17 +58,16 @@ Environment Variables (can also be set in .env file):
 
 import json
 import os
-import sys
-from pathlib import Path
-
-# Add project root to Python path for imports
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+# Add project root to Python path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 import click
 import joblib
@@ -442,8 +441,9 @@ def validate_for_promotion(manifest: dict, dest_workspace: str) -> bool:
     metrics = manifest.get("metrics", {})
 
     # Define requirements per destination
+    # Note: "enterprise-dev-staging" is the actual workspace name in 2-workspace architecture
     requirements = {
-        "enterprise-staging": {
+        "enterprise-dev-staging": {
             "accuracy": 0.70,
             "precision": 0.70,
             "recall": 0.70,
