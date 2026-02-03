@@ -20,7 +20,8 @@ from typing import Annotated
 
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from zenml import step
+from zenml import ArtifactConfig, step
+from zenml.enums import ArtifactType
 from zenml.logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,7 +34,10 @@ def engineer_features(
 ) -> tuple[
     Annotated[pd.DataFrame, "X_train_scaled"],
     Annotated[pd.DataFrame, "X_test_scaled"],
-    Annotated[StandardScaler, "scaler"],
+    Annotated[
+        StandardScaler,
+        ArtifactConfig(name="scaler", artifact_type=ArtifactType.MODEL),
+    ],
 ]:
     """Engineer and scale features for model training.
 

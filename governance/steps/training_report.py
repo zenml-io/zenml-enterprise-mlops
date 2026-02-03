@@ -26,6 +26,7 @@ Inspired by zenml-gitflow's model appraisal pattern.
 
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated
 
 import pandas as pd

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Prediction step for batch inference."""
+"""Prediction step for batch inference (breast cancer risk detection)."""
 
 from typing import Annotated
 
@@ -43,6 +43,8 @@ def predict_batch(
     logger.info(f"Generating predictions for {len(X)} patients")
 
     # Get predictions and probabilities
+    # After label inversion in data_loader: 1=high-risk, 0=low-risk
+    # So predict_proba()[:, 1] = high-risk probability
     predictions = model.predict(X)
     probabilities = model.predict_proba(X)[:, 1]
 
@@ -50,8 +52,8 @@ def predict_batch(
     results = pd.DataFrame(
         {
             "patient_id": X.index,
-            "readmission_risk": predictions,
-            "risk_probability": probabilities,
+            "high_risk": predictions,
+            "high_risk_probability": probabilities,
         }
     )
 
