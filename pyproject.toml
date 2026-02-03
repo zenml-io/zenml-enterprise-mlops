@@ -41,6 +41,7 @@ dependencies = [
     "evidently>=0.4.0",
     "pyyaml>=6.0",
     "click>=8.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

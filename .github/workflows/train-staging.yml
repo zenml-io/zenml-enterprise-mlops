@@ -11,7 +11,7 @@ on:
       - 'src/**'
       - 'governance/**'
       - 'configs/**'
-      - 'requirements.txt'
+      - 'pyproject.toml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,7 +46,7 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv pip install --system -r requirements.txt
+        run: uv pip install --system -e .
 
       - name: Install GCP integration
         run: zenml integration install gcp -y --uv
