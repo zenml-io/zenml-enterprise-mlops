@@ -91,10 +91,10 @@ def extract_metrics_from_run(run) -> dict:
     # Fallback: try model version metadata
     if not metrics:
         try:
-            # Get model version from run
-            model = run.model
-            if model:
-                run_metadata = model.run_metadata or {}
+            # Get model version from run (ZenML v2 API)
+            mv = run.model_version
+            if mv:
+                run_metadata = mv.run_metadata or {}
                 for key in ["accuracy", "precision", "recall", "f1_score", "roc_auc"]:
                     if key in run_metadata:
                         value = run_metadata[key]
@@ -130,12 +130,14 @@ def generate_report(
     status = run.status.value if run.status else "unknown"
     created = run.created.strftime("%Y-%m-%d %H:%M UTC") if run.created else "unknown"
 
-    # Get model info
+    # Get model info (ZenML v2 API)
     model_name = "unknown"
     model_version = "unknown"
-    if run.model:
-        model_name = run.model.name
-        model_version = run.model.version
+    mv = run.model_version
+    if mv:
+        model_name = mv.model.name
+        # Prefer human-readable version name if set, else fall back to number
+        model_version = mv.name or str(mv.number)
 
     # Get git info from environment
     git_sha = os.environ.get("ZENML_GITHUB_SHA", os.environ.get("GITHUB_SHA", "unknown"))[:7]
