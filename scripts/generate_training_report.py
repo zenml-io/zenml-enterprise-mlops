@@ -28,6 +28,7 @@ Usage:
 
 import os
 import sys
+import time
 from pathlib import Path
 
 import click
@@ -37,9 +38,24 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from zenml.client import Client
+from zenml.enums import ExecutionStatus
 from zenml.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Terminal states - pipeline has finished (successfully or not)
+TERMINAL_STATES = {
+    ExecutionStatus.COMPLETED,
+    ExecutionStatus.FAILED,
+    ExecutionStatus.CACHED,
+}
+
+# States where we should keep waiting
+PENDING_STATES = {
+    ExecutionStatus.INITIALIZING,
+    ExecutionStatus.PROVISIONING,
+    ExecutionStatus.RUNNING,
+}
 
 
 def get_latest_training_run(client: Client, pipeline_name: str = "training_pipeline"):
@@ -64,6 +80,57 @@ def get_latest_training_run(client: Client, pipeline_name: str = "training_pipel
         logger.warning(f"Could not find pipeline runs for '{pipeline_name}': {e}")
 
     return None
+
+
+def wait_for_run_completion(
+    client: Client,
+    run,
+    timeout: int = 1800,
+    poll_interval: int = 30,
+):
+    """Wait for a pipeline run to reach a terminal state.
+
+    Args:
+        client: ZenML client
+        run: Pipeline run to wait for
+        timeout: Maximum time to wait in seconds (default: 30 minutes)
+        poll_interval: Time between status checks in seconds (default: 30s)
+
+    Returns:
+        The updated pipeline run object
+
+    Raises:
+        TimeoutError: If the run doesn't complete within the timeout
+    """
+    start_time = time.time()
+    run_id = run.id
+
+    logger.info(f"Waiting for run {str(run_id)[:8]} to complete...")
+    logger.info(f"  Timeout: {timeout}s, Poll interval: {poll_interval}s")
+
+    while True:
+        # Refresh run status
+        run = client.get_pipeline_run(run_id)
+        status = run.status
+        elapsed = int(time.time() - start_time)
+
+        logger.info(f"  [{elapsed}s] Status: {status.value}")
+
+        # Check if we've reached a terminal state
+        if status in TERMINAL_STATES:
+            logger.info(f"Run completed with status: {status.value}")
+            return run
+
+        # Check timeout
+        if elapsed >= timeout:
+            logger.warning(f"Timeout reached after {elapsed}s. Current status: {status.value}")
+            raise TimeoutError(
+                f"Pipeline run {str(run_id)[:8]} did not complete within {timeout}s. "
+                f"Last status: {status.value}"
+            )
+
+        # Wait before next poll
+        time.sleep(poll_interval)
 
 
 def extract_metrics_from_run(run) -> dict:
@@ -91,10 +158,10 @@ def extract_metrics_from_run(run) -> dict:
     # Fallback: try model version metadata
     if not metrics:
         try:
-            # Get model version from run
-            model = run.model
-            if model:
-                run_metadata = model.run_metadata or {}
+            # Get model version from run (ZenML v2 API)
+            mv = run.model_version
+            if mv:
+                run_metadata = mv.run_metadata or {}
                 for key in ["accuracy", "precision", "recall", "f1_score", "roc_auc"]:
                     if key in run_metadata:
                         value = run_metadata[key]
@@ -130,12 +197,14 @@ def generate_report(
     status = run.status.value if run.status else "unknown"
     created = run.created.strftime("%Y-%m-%d %H:%M UTC") if run.created else "unknown"
 
-    # Get model info
+    # Get model info (ZenML v2 API)
     model_name = "unknown"
     model_version = "unknown"
-    if run.model:
-        model_name = run.model.name
-        model_version = run.model.version
+    mv = run.model_version
+    if mv:
+        model_name = mv.model.name
+        # Prefer human-readable version name if set, else fall back to number
+        model_version = mv.name or str(mv.number)
 
     # Get git info from environment
     git_sha = os.environ.get("ZENML_GITHUB_SHA", os.environ.get("GITHUB_SHA", "unknown"))[:7]
@@ -244,12 +313,31 @@ def generate_report(
     default=0.7,
     help="Minimum recall threshold",
 )
+@click.option(
+    "--timeout",
+    default=1800,
+    help="Max seconds to wait for pipeline completion (default: 1800 = 30 min)",
+)
+@click.option(
+    "--poll-interval",
+    default=30,
+    help="Seconds between status checks (default: 30)",
+)
+@click.option(
+    "--no-wait",
+    is_flag=True,
+    default=False,
+    help="Don't wait for pipeline completion, report current state",
+)
 def main(
     pipeline: str,
     output: str,
     min_accuracy: float,
     min_precision: float,
     min_recall: float,
+    timeout: int,
+    poll_interval: int,
+    no_wait: bool,
 ):
     """Generate training report from the latest pipeline run."""
     logger.info("Generating training report...")
@@ -274,6 +362,32 @@ Please ensure the training pipeline has completed before generating the report.
         sys.exit(1)
 
     logger.info(f"Found run: {run.id}")
+
+    # Wait for pipeline to complete (unless --no-wait is set)
+    if not no_wait and run.status in PENDING_STATES:
+        try:
+            run = wait_for_run_completion(
+                client, run, timeout=timeout, poll_interval=poll_interval
+            )
+        except TimeoutError as e:
+            logger.error(str(e))
+            # Generate a timeout report
+            timeout_report = f"""# Training Report
+
+## ⏱️ Pipeline Timeout
+
+Pipeline run `{str(run.id)[:8]}` did not complete within {timeout} seconds.
+
+**Last Status**: `{run.status.value}`
+
+**Next steps:**
+1. Check the [ZenML Dashboard](https://cloud.zenml.io) for pipeline progress
+2. Re-run this workflow once the pipeline completes
+3. Consider increasing the `--timeout` value if pipelines regularly take longer
+"""
+            with open(output, "w") as f:
+                f.write(timeout_report)
+            sys.exit(1)
 
     # Extract metrics
     metrics = extract_metrics_from_run(run)
