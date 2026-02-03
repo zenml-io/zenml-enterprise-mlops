@@ -119,9 +119,11 @@ def training_pipeline():
 **Purpose**: ML code, pipelines, custom logic
 
 **Contents**:
-- `pipelines/` - training.py, batch_inference.py, champion_challenger.py, realtime_inference.py
+- `pipelines/` - training.py, batch_inference.py, champion_challenger.py, realtime_inference.py, import_model.py
 - `steps/` - data_loader.py, model_trainer.py, etc.
 - `utils/` - Helper functions
+
+**Note**: `import_model.py` is the "receiving end" of cross-workspace promotion - it runs in the production workspace to download artifacts from GCS and register them with full lineage metadata.
 
 **Pattern**: Pure Python, no governance mixed in
 
@@ -487,6 +489,33 @@ def train_with_gpu():
 2. **Docker images** → `governance/docker/`
 3. **GitHub Actions** → `.github/workflows/`
 
+### Environment Configurations (`configs/`)
+
+Environment-specific pipeline configurations live in `configs/`:
+
+| File | Cache | Accuracy Threshold | Use Case |
+|------|-------|--------------------|----------|
+| `local.yaml` | Enabled | 70% | Fast local iteration |
+| `staging.yaml` | Disabled | 70% | Pre-release validation |
+| `production.yaml` | Disabled | 80% | Production deployment |
+
+Usage: `zenml pipeline run ... --config configs/staging.yaml`
+
+### Running Tests
+
+The `tests/` folder contains the test suite:
+
+```bash
+# Run all tests
+pytest tests/
+
+# Key test files:
+# - test_imports.py - Module import validation
+# - test_steps.py - Step functionality
+# - test_promotion_logic.py - Promotion workflow logic
+# - test_docker_settings.py - Docker configuration
+```
+
 ### Best Practices
 
 - Use `Annotated` for artifact names: `Annotated[pd.DataFrame, "X_train"]`
@@ -505,6 +534,7 @@ These demonstrate key patterns - changing them breaks the demo:
 - ✋ `src/pipelines/batch_inference.py` - Shows loading production model by stage
 - ✋ `src/pipelines/champion_challenger.py` - Shows A/B model comparison pattern
 - ✋ `src/pipelines/realtime_inference.py` - Shows Pipeline Deployments for serving
+- ✋ `src/pipelines/import_model.py` - Shows cross-workspace artifact import with lineage preservation
 - ✋ `governance/hooks/alerting_hook.py` - Shows hook-based governance and notifications
 - ✋ `scripts/promote_cross_workspace.py` - Shows cross-workspace promotion with metadata
 - ✋ `.github/workflows/promote-to-production.yml` - Shows cross-workspace GitOps pattern
@@ -565,6 +595,9 @@ python run.py --pipeline champion_challenger
 # Deploy real-time inference service
 zenml pipeline deploy src.pipelines.realtime_inference.inference_service \
     --name readmission-api
+
+# Run tests
+pytest tests/
 
 # Check results in dashboard
 zenml login
