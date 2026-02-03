@@ -75,16 +75,20 @@ jobs:
           python run.py --pipeline training --environment staging
 
       # Generate training report from pipeline results
+      # Waits for the pipeline to complete before generating the report
       - name: Generate training report
         id: report
         continue-on-error: true
+        timeout-minutes: 45  # Allow time for pipeline completion + report generation
         run: |
           python scripts/generate_training_report.py \
             --pipeline training_pipeline \
             --output training_report.md \
             --min-accuracy 0.7 \
             --min-precision 0.7 \
-            --min-recall 0.7
+            --min-recall 0.7 \
+            --timeout 2400 \
+            --poll-interval 30
 
       # Post detailed report as PR comment
       - name: Comment training report on PR
