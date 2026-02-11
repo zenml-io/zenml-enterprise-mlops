@@ -1,0 +1,7 @@
+# AWS / Sagemaker stack dependencies
+# Install with: pip install -r requirements-aws.txt
+# Use alongside base requirements: pip install -r requirements.txt -r requirements-aws.txt
+
+s3fs>2022.3.0,!=2025.3.1
+boto3
+aws-profile-manager
