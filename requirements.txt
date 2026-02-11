@@ -18,6 +18,7 @@ slack-sdk==3.30.0
 # Utilities
 pyyaml>=6.0
 click>=8.0.0
+pygithub>=2.8.0
 
 # Development
 jupyter>=1.0.0
