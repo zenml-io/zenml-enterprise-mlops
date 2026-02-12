@@ -39,6 +39,7 @@ CONFIG_DIR = Path("configs")
 STACK_DEFAULTS = {
     "local": "local-mlflow-evidently-gcs",
     "staging": "zenml-kubernetes",
+    "production": "zenml-kubernetes",
 }
 
 
