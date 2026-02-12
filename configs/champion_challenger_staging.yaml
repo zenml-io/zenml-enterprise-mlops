@@ -1,0 +1,23 @@
+# Champion/Challenger - Staging Configuration
+# Run with: python run.py --pipeline champion_challenger --environment staging
+
+run_name: "champion_challenger_staging_{date}_{time}"
+
+enable_cache: false
+
+tags:
+  - "staging"
+  - "champion_challenger"
+  - "pre-release"
+
+settings:
+  docker:
+    python_package_installer: uv
+    requirements: "requirements.txt"
+    required_integrations:
+      - sklearn
+  orchestrator:
+    synchronous: false
+  resources:
+    cpu_count: 2
+    memory: 4GB

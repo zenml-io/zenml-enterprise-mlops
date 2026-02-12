@@ -30,6 +30,7 @@ settings:
   docker:
     # No parent_image = use default ZenML image (has ZenML pre-installed)
     python_package_installer: uv
+    requirements: "requirements.txt"
     required_integrations:
       - sklearn
   resources:

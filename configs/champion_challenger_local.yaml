@@ -1,0 +1,21 @@
+# Champion/Challenger - Local Configuration
+# Run with: python run.py --pipeline champion_challenger --environment local
+
+run_name: "champion_challenger_local_{date}_{time}"
+
+enable_cache: false
+
+tags:
+  - "local"
+  - "champion_challenger"
+  - "development"
+
+settings:
+  docker:
+    python_package_installer: uv
+    requirements: "requirements.txt"
+    required_integrations:
+      - sklearn
+  resources:
+    cpu_count: 2
+    memory: 4GB

@@ -21,15 +21,21 @@ by the platform team to be included in all pipelines.
 """
 
 from governance.steps.data_validation import validate_data_quality
+from governance.steps.drift_alert import drift_alert_slack
+from governance.steps.drift_detection import drift_report_step
 from governance.steps.model_validation import validate_model_performance
+from governance.steps.simulate_drift import introduce_simulated_drift
 from governance.steps.training_report import (
     generate_html_report,
     generate_training_report,
 )
 
 __all__ = [
+    "drift_alert_slack",
+    "drift_report_step",
     "generate_html_report",
     "generate_training_report",
+    "introduce_simulated_drift",
     "validate_data_quality",
     "validate_model_performance",
 ]

@@ -160,7 +160,13 @@ def main(
     elif pipeline == "batch_inference":
         from src.pipelines.batch_inference import batch_inference_pipeline
 
-        snapshot = batch_inference_pipeline.create_snapshot(name=name)
+        config_path = project_root / "configs" / f"batch_inference_{environment}.yaml"
+        if config_path.exists():
+            snapshot = batch_inference_pipeline.with_options(
+                config_path=str(config_path)
+            ).create_snapshot(name=name)
+        else:
+            snapshot = batch_inference_pipeline.create_snapshot(name=name)
 
     logger.info(f"Snapshot created: {snapshot.id}")
     logger.info(f"   Name: {snapshot.name}")

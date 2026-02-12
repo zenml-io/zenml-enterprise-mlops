@@ -29,7 +29,10 @@ from zenml import Model, get_step_context, pipeline, step
 from zenml.enums import ModelStages
 from zenml.logger import get_logger
 
-from governance.hooks import pipeline_failure_hook, pipeline_success_hook
+from governance.hooks import (
+    batch_inference_success_hook,
+    pipeline_failure_hook,
+)
 from src.steps import load_data
 
 logger = get_logger(__name__)
@@ -95,25 +98,65 @@ def scale_and_predict(
         name="breast_cancer_classifier",
         version=ModelStages.PRODUCTION,  # Always use production model
     ),
-    on_success=pipeline_success_hook,
     on_failure=pipeline_failure_hook,
     enable_cache=False,
 )
-def batch_inference_pipeline():
+def batch_inference_pipeline(
+    enable_drift_detection: bool = False,
+    simulate_drift: bool = False,
+):
     """Run batch inference using the production model.
 
     This pipeline:
-    1. Loads new data
-    2. Loads the production model and scaler (by stage)
-    3. Scales features and generates predictions
+    1. Loads new data (and reference data when drift detection enabled)
+    2. Optionally simulates drift (staging: set simulate_drift in config)
+    3. Optionally runs drift detection and Slack alert (staging/production)
+    4. Loads the production model and scaler (by stage)
+    5. Scales features and generates predictions
 
     The model is referenced by stage ("production") so this pipeline
     always uses the current production model without code changes.
-    """
-    # Load new data to predict on (using test set as demo data)
-    _X_train, X_test, _, _ = load_data()
 
-    # Scale and predict in a single step
-    predictions = scale_and_predict(X_test)
+    Args:
+        enable_drift_detection: When True, compares inference input against
+            training baseline to detect data drift. Use in staging/production.
+        simulate_drift: When True (and drift detection enabled), artificially
+            shifts data to trigger drift. Use in staging to test alerting.
+    """
+    # Load data (X_train = reference for drift; X_test = inference input)
+    X_train, X_test, _, _ = load_data()
+
+    # Step success hooks: attach in staging/production only (when drift enabled)
+    predict_step = (
+        scale_and_predict.with_options(on_success=batch_inference_success_hook)
+        if enable_drift_detection
+        else scale_and_predict
+    )
+
+    # Platform governance: drift detection (staging/production only)
+    if enable_drift_detection:
+        from governance.steps import (
+            drift_alert_slack,
+            drift_report_step,
+            introduce_simulated_drift,
+        )
+
+        # Simulate drift when testing (e.g. simulate_drift: true in staging yaml)
+        X_test_for_drift = introduce_simulated_drift(
+            data=X_test, simulate_drift=simulate_drift
+        )
+        report_json, _ = drift_report_step(
+            reference_dataset=X_train,
+            comparison_dataset=X_test_for_drift,
+        )
+        drift_alert_slack(
+            report_json=report_json,
+            reference_data=X_train,
+            current_data=X_test_for_drift,
+            simulate_drift=simulate_drift,
+        )
+        predictions = predict_step(X_test_for_drift)
+    else:
+        predictions = predict_step(X_test)
 
     return predictions
