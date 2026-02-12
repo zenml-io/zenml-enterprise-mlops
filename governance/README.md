@@ -23,8 +23,10 @@ governance/
 │   └── monitoring_hook.py      # Metrics logging
 │
 ├── steps/              # Shared validation
-│   ├── validate_data_quality.py
-│   └── validate_model_performance.py
+│   ├── data_validation.py
+│   ├── drift_detection.py     # Data drift (staging/production)
+│   ├── model_validation.py
+│   └── training_report.py
 │
 ├── materializers/      # Enhanced artifact handling
 │   └── dataframe_materializer.py
@@ -85,6 +87,7 @@ This keeps pipeline code clean while enabling environment-specific governance.
 |------|--------------|--------------|
 | `alerter_success_hook` | Step succeeds | Sends Slack notification |
 | `alerter_failure_hook` | Step fails | Sends Slack alert with error details |
+| `batch_inference_success_hook` | `scale_and_predict` succeeds | Inference completed (prediction stats) |
 | `pipeline_success_hook` | Pipeline completes | Sends completion notification |
 | `pipeline_failure_hook` | Pipeline fails | Sends critical failure alert |
 | `model_governance_hook` | Model training succeeds | Enforces required tags and naming conventions |
@@ -125,6 +128,32 @@ Models must have required tags:
 ```
 
 The `model_governance_hook` enforces these requirements in staging/production.
+
+### Drift Detection (Batch Inference)
+
+Data drift detection runs **only in staging/production** (like governance hooks):
+
+```python
+# batch_inference pipeline - drift step added when enable_drift_detection=True
+if enable_drift_detection:
+    report_json, _ = drift_report_step(
+        reference_dataset=X_train,
+        comparison_dataset=X_test_for_drift,
+    )
+    drift_alert_slack(
+        report_json=report_json,
+        reference_data=X_train,
+        current_data=X_test_for_drift,
+        simulate_drift=simulate_drift,
+    )
+```
+
+- **Reference**: Training data baseline
+- **Current**: Inference input to predict on
+- Uses ZenML `evidently_report_step` with DataDriftPreset
+- **Slack alert**: Sent automatically when drift is detected (uses stack alerter)
+- **Simulate drift**: Set `simulate_drift: true` in `configs/batch_inference_staging.yaml` to test
+- Run with: `python run.py --pipeline batch_inference --environment staging`
 
 ### Shared Validation Steps
 
@@ -224,7 +253,11 @@ zenml stack register production_stack \
 from governance.hooks import pipeline_success_hook, pipeline_failure_hook
 
 # Validation steps
-from governance.steps import validate_data_quality, validate_model_performance
+from governance.steps import (
+    detect_data_drift,
+    validate_data_quality,
+    validate_model_performance,
+)
 
 # Docker settings
 from governance.docker import STANDARD_DOCKER_SETTINGS
@@ -236,6 +269,7 @@ from governance.docker import STANDARD_DOCKER_SETTINGS
 |-----------|-------------|---------|
 | Alerting Hooks | Pipeline notifications | Slack alerts on success/failure |
 | Validation Steps | Data/model quality gates | Check missing values, accuracy |
+| Drift Detection | Batch inference (staging/prod) | Compare input vs training baseline |
 | Docker Settings | Containerized execution | Consistent environments |
 
 ### What's Automatic (No Code Needed)

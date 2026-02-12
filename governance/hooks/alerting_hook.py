@@ -122,6 +122,110 @@ def alerter_failure_hook(exception: BaseException) -> None:
         logger.warning(f"Could not send failure alert: {e}")
 
 
+def batch_inference_success_hook() -> None:
+    """Send notification when batch inference step completes successfully.
+
+    Use as step-level on_success for scale_and_predict. Includes prediction stats.
+    """
+    try:
+        context = get_step_context()
+        pipeline_name = context.pipeline_run.pipeline.name
+        run_name = context.pipeline_run.name
+
+        # Load predictions from step output to get stats
+        high_risk_count = 0
+        total = 0
+        try:
+            outputs = getattr(context.step_run, "outputs", None) or {}
+            pred_artifact = outputs.get("predictions")
+            if pred_artifact is not None:
+                preds = pred_artifact.load() if hasattr(pred_artifact, "load") else None
+                if preds is not None:
+                    total = len(preds)
+                    if hasattr(preds, "columns") and "prediction" in preds.columns:
+                        high_risk_count = int((preds["prediction"] == 1).sum())
+        except Exception:
+            pass
+
+        stats = ""
+        if total > 0:
+            pct = high_risk_count / total * 100
+            stats = f"\n• Predictions: {total} total, {high_risk_count} high-risk ({pct:.1f}%)"
+
+        model_info = ""
+        if context.model:
+            model_info = f"\n• Model: `{context.model.name}` v{context.model.version}"
+
+        message = (
+            f"✅ *Batch Inference Completed Successfully*\n"
+            f"• Pipeline: `{pipeline_name}`\n"
+            f"• Run: `{run_name}`"
+            f"{model_info}"
+            f"{stats}"
+        )
+
+        client = Client()
+        alerter = client.active_stack.alerter
+        if alerter:
+            alerter.post(message=message)
+            logger.info(f"Inference success notification sent for '{pipeline_name}'")
+        else:
+            logger.info(f"No alerter configured. Inference completed for '{pipeline_name}'")
+    except Exception as e:
+        logger.warning(f"Could not send inference success alert: {e}")
+
+
+def drift_detection_success_hook() -> None:
+    """Send notification with drift detection results when run_drift_detection completes.
+
+    Use as step-level on_success for run_drift_detection. Sends drift stats.
+    """
+    try:
+        context = get_step_context()
+        pipeline_name = context.pipeline_run.pipeline.name
+        run_name = context.pipeline_run.name
+
+        drift_report = {}
+        try:
+            outputs = getattr(context.step_run, "outputs", None) or {}
+            drift_artifact = outputs.get("drift_report")
+            if drift_artifact is not None:
+                drift_report = drift_artifact.load() if hasattr(drift_artifact, "load") else {}
+            if not isinstance(drift_report, dict):
+                drift_report = {}
+        except Exception:
+            pass
+
+        drifted = drift_report.get("number_of_drifted_columns", 0)
+        share = drift_report.get("share_of_drifted_columns", 0.0)
+        if not isinstance(share, (int, float)):
+            share = 0.0
+        ref_rows = drift_report.get("reference_rows", 0)
+        cur_rows = drift_report.get("current_rows", 0)
+        detected = drift_report.get("dataset_drift_detected", False)
+
+        status = "⚠️ Drift detected" if detected or drifted > 0 else "✓ No drift"
+        message = (
+            f"📊 *Drift Detection Results*\n"
+            f"• Pipeline: `{pipeline_name}`\n"
+            f"• Run: `{run_name}`\n"
+            f"• Status: {status}\n"
+            f"• Drifted columns: {drifted} ({share:.1%} of features)\n"
+            f"• Reference samples: {ref_rows}\n"
+            f"• Current samples: {cur_rows}"
+        )
+
+        client = Client()
+        alerter = client.active_stack.alerter
+        if alerter:
+            alerter.post(message=message)
+            logger.info(f"Drift detection results notification sent for '{pipeline_name}'")
+        else:
+            logger.info(f"No alerter configured. Drift check completed for '{pipeline_name}'")
+    except Exception as e:
+        logger.warning(f"Could not send drift detection results alert: {e}")
+
+
 def pipeline_success_hook() -> None:
     """Send notification when entire pipeline succeeds.
 

@@ -39,6 +39,8 @@ Available Hooks:
 from governance.hooks.alerting_hook import (
     alerter_failure_hook,
     alerter_success_hook,
+    batch_inference_success_hook,
+    drift_detection_success_hook,
     pipeline_failure_hook,
     pipeline_success_hook,
 )
@@ -62,7 +64,9 @@ def pipeline_governance_success_hook() -> None:
 __all__ = [
     "alerter_failure_hook",
     "alerter_success_hook",
+    "batch_inference_success_hook",
     "compliance_failure_hook",
+    "drift_detection_success_hook",
     "model_governance_hook",
     "monitoring_success_hook",
     "pipeline_failure_hook",

@@ -1,0 +1,26 @@
+# Batch Inference - Production Configuration
+# Used in CI/CD workflows (e.g. test-batch-inference.yml)
+
+run_name: "batch_inference_production_{date}_{time}"
+
+enable_cache: false  # Always run fresh to use current production model
+
+parameters:
+  enable_drift_detection: true  # Platform governance: detect data drift
+  simulate_drift: false  # Never simulate in production
+
+tags:
+  - "production"
+  - "batch_inference"
+  - "release"
+
+settings:
+  docker:
+    python_package_installer: uv
+    requirements: "requirements.txt"
+    required_integrations:
+      - sklearn
+      - evidently
+  resources:
+    cpu_count: 4
+    memory: 8GB

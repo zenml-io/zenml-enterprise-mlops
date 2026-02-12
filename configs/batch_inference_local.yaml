@@ -1,0 +1,24 @@
+# Batch Inference - Local Configuration
+# Run with: python run.py --pipeline batch_inference --environment local
+
+run_name: "batch_inference_local_{date}_{time}"
+
+enable_cache: false  # Always run fresh to use current production model
+
+parameters:
+  enable_drift_detection: false  # Skip drift detection for fast local iteration
+  simulate_drift: false
+
+tags:
+  - "local"
+  - "batch_inference"
+
+settings:
+  docker:
+    python_package_installer: uv
+    requirements: "requirements.txt"
+    required_integrations:
+      - sklearn
+  resources:
+    cpu_count: 2
+    memory: 4GB

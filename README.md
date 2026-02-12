@@ -42,7 +42,7 @@ zenml login
 |----------|---------|---------|
 | Training | `python run.py --pipeline training` | Train and validate model |
 | Batch Inference | `python run.py --pipeline batch_inference` | Score new data with production model |
-| Champion/Challenger | `python run.py --pipeline champion_challenger` | Compare staging vs production |
+| Champion/Challenger | `e` | Compare staging vs production |
 
 ### With Environment Configs
 

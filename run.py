@@ -61,9 +61,9 @@ def activate_stack(stack_name: str) -> None:
 )
 @click.option(
     "--environment",
-    type=click.Choice(["local", "staging"]),
+    type=click.Choice(["local", "staging", "production"]),
     default="local",
-    help="local = fast iteration, staging = with governance hooks",
+    help="local = fast iteration, staging/production = with governance hooks and drift detection",
 )
 @click.option(
     "--stack",
@@ -109,12 +109,33 @@ def main(pipeline: str, environment: str, stack: str | None):
     elif pipeline == "batch_inference":
         from src.pipelines.batch_inference import batch_inference_pipeline
 
-        batch_inference_pipeline()
+        # Drift detection only in staging/production (like governance hooks)
+        enable_drift = environment in ("staging", "production")
+
+        config_path = CONFIG_DIR / f"batch_inference_{environment}.yaml"
+        if config_path.exists():
+            pipeline_to_run = batch_inference_pipeline.with_options(
+                config_path=str(config_path)
+            )
+            logger.info(f"Loaded config: {config_path}")
+        else:
+            pipeline_to_run = batch_inference_pipeline
+
+        pipeline_to_run(enable_drift_detection=enable_drift)
 
     elif pipeline == "champion_challenger":
         from src.pipelines.champion_challenger import champion_challenger_pipeline
 
-        champion_challenger_pipeline()
+        config_path = CONFIG_DIR / f"champion_challenger_{environment}.yaml"
+        if config_path.exists():
+            pipeline_to_run = champion_challenger_pipeline.with_options(
+                config_path=str(config_path)
+            )
+            logger.info(f"Loaded config: {config_path}")
+        else:
+            pipeline_to_run = champion_challenger_pipeline
+
+        pipeline_to_run()
 
 
 if __name__ == "__main__":

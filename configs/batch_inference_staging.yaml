@@ -1,0 +1,28 @@
+# Batch Inference - Staging Configuration
+# Run with: python run.py --pipeline batch_inference --environment staging
+
+run_name: "batch_inference_staging_{date}_{time}"
+
+enable_cache: false  # Always run fresh to use current production model
+
+parameters:
+  enable_drift_detection: false  # Platform governance: detect data drift
+  simulate_drift: false  # Set true to test drift detection and Slack alert
+
+tags:
+  - "staging"
+  - "batch_inference"
+  - "pre-release"
+
+settings:
+  docker:
+    python_package_installer: uv
+    requirements: "requirements.txt"
+    required_integrations:
+      - evidently
+      - sklearn
+  orchestrator:
+    synchronous: false
+  resources:
+    cpu_count: 2
+    memory: 4GB

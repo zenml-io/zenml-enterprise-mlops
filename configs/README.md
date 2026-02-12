@@ -47,11 +47,26 @@ python scripts/build_snapshot.py --environment production --stack my-stack
 
 ## Configuration Files
 
+### Training Pipeline
 | File | Cache | Thresholds | Use Case |
 |------|-------|------------|----------|
 | `local.yaml` | Enabled | 70% accuracy | Fast local iteration |
 | `staging.yaml` | Disabled | 70% accuracy | Pre-release validation |
 | `production.yaml` | Disabled | 80% accuracy | Production deployment |
+
+### Batch Inference Pipeline
+| File | Use Case |
+|------|----------|
+| `batch_inference_local.yaml` | Local dev with Docker settings |
+| `batch_inference_staging.yaml` | Staging validation runs |
+| `batch_inference_production.yaml` | Production batch inference |
+
+### Champion/Challenger Pipeline
+| File | Use Case |
+|------|----------|
+| `champion_challenger_local.yaml` | Local dev with Docker settings |
+| `champion_challenger_staging.yaml` | Staging comparison runs |
+| `champion_challenger_production.yaml` | Production comparison runs |
 
 ## Configuration Structure
 
