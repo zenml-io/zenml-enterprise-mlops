@@ -65,6 +65,7 @@ jobs:
       # Set project and stack (ZenML auto-connects via env vars)
       - name: Configure ZenML
         run: |
+          zenml init
           zenml project set $ZENML_PROJECT
           zenml stack set $ZENML_STACK
 
