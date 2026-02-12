@@ -1,0 +1,14 @@
+# Azure / AzureML stack dependencies
+# Install with: pip install -r requirements-azure.txt
+# Use alongside base requirements: pip install -r requirements.txt -r requirements-azure.txt
+
+adlfs>=2021.10.0
+azure-keyvault-keys
+azure-keyvault-secrets
+azure-identity
+azureml-core==1.56.0
+azure-mgmt-containerservice>=20.0.0
+azure-storage-blob==12.17.0
+kubernetes
+azure-ai-ml==1.23.1
+marshmallow<4.0.0
