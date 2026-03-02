@@ -37,9 +37,15 @@ CONFIG_DIR = Path("configs")
 
 # Default stacks per environment
 STACK_DEFAULTS = {
+<<<<<<< Updated upstream
     "local": "local-mlflow-evidently-gcs",
     "staging": "zenml-kubernetes",
     "production": "zenml-kubernetes",
+=======
+    "local": "dev-stack",
+    "staging": "staging-stack",
+    "production": "staging-stack",
+>>>>>>> Stashed changes
 }
 
 
@@ -61,15 +67,15 @@ def activate_stack(stack_name: str) -> None:
 )
 @click.option(
     "--environment",
-    type=click.Choice(["local", "staging"]),
+    type=click.Choice(["local", "staging", "production"]),
     default="local",
-    help="local = fast iteration, staging = with governance hooks",
+    help="local = fast iteration, staging/production = with governance hooks and drift detection",
 )
 @click.option(
     "--stack",
     type=str,
     default=None,
-    help="Stack to use (default: dev-stack for local, staging-stack for staging)",
+    help="Stack to use (default: dev-stack for local, staging-stack for staging, gcp-stack for production)",
 )
 def main(pipeline: str, environment: str, stack: str | None):
     """Run ZenML pipelines for patient readmission prediction."""
