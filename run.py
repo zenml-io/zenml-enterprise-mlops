@@ -39,7 +39,7 @@ CONFIG_DIR = Path("configs")
 STACK_DEFAULTS = {
     "local": "dev-stack",
     "staging": "staging-stack",
-    "production": "gcp-stack",
+    "production": "staging-stack",
 }
 
 
