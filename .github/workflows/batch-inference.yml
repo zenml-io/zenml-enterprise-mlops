@@ -39,6 +39,10 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
+      # Pin ZenML to match production server - avoids 405 on create_logs (version mismatch)
+      - name: Pin ZenML to match production server
+        run: uv pip install --system "zenml[server]==0.93.2"
+
       - name: Install GCP integration
         run: zenml integration install gcp -y --uv
 

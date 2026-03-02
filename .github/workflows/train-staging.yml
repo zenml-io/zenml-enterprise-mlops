@@ -86,16 +86,6 @@ jobs:
             --min-precision 0.7 \
             --min-recall 0.7
 
-      # Post detailed report as PR comment
-      - name: Comment training report on PR
-        if: always()
-        uses: thollander/actions-comment-pull-request@v2
-        with:
-          filePath: ./training_report.md
-          comment_tag: training_report
-          mode: recreate
-          create_if_not_exists: true
-
       # Also post a summary comment if report generation failed
       - name: Fallback comment on PR
         if: failure() && steps.report.outcome == 'failure'
