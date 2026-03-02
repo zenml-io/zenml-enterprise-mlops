@@ -90,6 +90,8 @@ def check_and_apply_smote(
         f"Minority class ratio: {minority_ratio:.2%}"
     )
 
+    logger.info(f"Imbalance threshold: {imbalance_threshold}")
+
     if minority_ratio >= imbalance_threshold:
         logger.info("No resampling needed - class distribution acceptable")
         return X_train, y_train
